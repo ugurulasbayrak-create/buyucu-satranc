@@ -17,7 +17,7 @@ addEventListener('message',async e=>{
   let out=w.__shot;
   try{
     await new Promise((res,rej)=>{const sc=w.document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';sc.onload=res;sc.onerror=rej;w.document.head.appendChild(sc);});
-    const ov=await w.html2canvas(w.document.body,{backgroundColor:null,ignoreElements:el=>el.tagName==='CANVAS',scale:1,width:w.innerWidth,height:w.innerHeight,logging:false,onclone:(doc)=>{doc.documentElement.style.background='transparent';doc.body.style.background='transparent';doc.querySelectorAll('canvas').forEach(c=>c.style.visibility='hidden');}});
+    const ov=await w.html2canvas(w.document.body,{backgroundColor:null,ignoreElements:el=>el.tagName==='CANVAS',scale:1,width:w.innerWidth,height:w.innerHeight,logging:false,onclone:(doc)=>{doc.documentElement.style.background='transparent';doc.body.style.background='transparent';const st=doc.getElementById('stage');if(st)st.style.background='transparent';doc.querySelectorAll('canvas').forEach(c=>c.style.visibility='hidden');}});
     const base=new Image();base.src=w.__shot;await base.decode();
     const c=document.createElement('canvas');c.width=base.width;c.height=base.height;const x=c.getContext('2d');x.drawImage(base,0,0);x.drawImage(ov,0,0,c.width,c.height);
     out=c.toDataURL('image/png');
