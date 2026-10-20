@@ -25,6 +25,11 @@ jobs:
         run: |
           sed -i -E 's/minSdkVersion = [0-9]+/minSdkVersion = 24/' android/variables.gradle
           grep minSdkVersion android/variables.gradle
+      - name: Hedef API 36 (Play gereksinimi)
+        run: |
+          sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 36/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 36/' android/variables.gradle
+          echo "android.suppressUnsupportedCompileSdk=36" >> android/gradle.properties
+          grep -E "SdkVersion" android/variables.gradle
       - name: Bildirim izni (Android 13+)
         run: |
           F=android/app/src/main/AndroidManifest.xml
