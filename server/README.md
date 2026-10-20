@@ -14,3 +14,11 @@ Sunucu Firestore'a Firebase Admin ile yazar; istemciler hamle ve sonuç yazamaz 
 
 ## Maliyet notu
 Sunucu 15 saniyede bir devam eden maçları tarar (süre kontrolü). Küçük kullanıcı sayısında Firestore ücretsiz kotası yeter.
+
+## Canlı adres (Railway)
+
+`https://buyucu-satranc-production.up.railway.app`
+
+Sunucu `FIREBASE_SERVICE_ACCOUNT` değişkeni eklenip `GET /` yanıt verdikten sonra
+`docs/firebase-config.js` ve `www/firebase-config.js` içindeki `window.SERVER_URL`
+bu adrese ayarlanır, ardından `firestore.rules.strict` yayınlanır.
