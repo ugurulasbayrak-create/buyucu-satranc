@@ -25,6 +25,11 @@ jobs:
         run: |
           sed -i -E 's/minSdkVersion = [0-9]+/minSdkVersion = 24/' android/variables.gradle
           grep minSdkVersion android/variables.gradle
+      - name: Bildirim izni (Android 13+)
+        run: |
+          F=android/app/src/main/AndroidManifest.xml
+          grep -q POST_NOTIFICATIONS $F || sed -i 's|</manifest>|    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>|' $F
+          grep -n "POST_NOTIFICATIONS" $F
       - name: google-services.json
         run: |
           test -f android-config/google-services.json || { echo "android-config/google-services.json yok"; exit 1; }

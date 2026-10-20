@@ -57,11 +57,36 @@ app.post('/move', auth, async (req, res) => {
         if (g.in_checkmate()) { upd.result = turn; upd.reason = 'mate'; } else { upd.result = 'draw'; upd.reason = 'draw'; }
       }
       tx.update(ref, upd);
-      return { status: 200, ok: true, n: upd.moves.length, done: !!upd.status };
+      return { status: 200, ok: true, n: upd.moves.length, done: !!upd.status, opp: turn === 'w' ? d.b : d.w, code, mover: turn };
     });
-    res.status(out.status).json(out);
+    if (out.ok && out.opp) notifyOpponent(out.opp, out.code, out.done);
+    res.status(out.status).json({ status: out.status, ok: out.ok, error: out.error, n: out.n, done: out.done });
   } catch (e) { console.error('move', e); res.status(500).json({ error: 'server' }); }
 });
+
+// ----- Push bildirimleri (FCM) -----
+const tokDoc = uid => db.collection('pushTokens').doc(uid);
+app.post('/push-token', auth, async (req, res) => {
+  const { token, remove } = req.body || {};
+  if (typeof token !== 'string' || token.length < 20 || token.length > 400) return res.status(400).json({ error: 'bad_request' });
+  try {
+    await tokDoc(req.uid).set({ tokens: remove ? FV.arrayRemove(token) : FV.arrayUnion(token), updatedAt: FV.serverTimestamp() }, { merge: true });
+    res.json({ ok: true });
+  } catch (e) { console.error('push-token', e); res.status(500).json({ error: 'server' }); }
+});
+async function notifyOpponent(uid, code, done) {
+  try {
+    const snap = await tokDoc(uid).get();
+    const tokens = (snap.exists && snap.get('tokens')) || [];
+    if (!tokens.length) return;
+    const msg = done
+      ? { title: '♟ Maç bitti', body: 'Rakibin son hamleyi yaptı. Sonuca bak.' }
+      : { title: '♟ Sıra sende', body: 'Rakibin hamle yaptı. Büyülü tahta seni bekliyor.' };
+    const r = await admin.messaging().sendEachForMulticast({ tokens, notification: msg, data: { code }, android: { priority: 'high', ttl: 3600 * 1000 } });
+    const dead = tokens.filter((t, i) => !r.responses[i].success && /registration-token-not-registered|invalid-argument|invalid-registration-token/.test((r.responses[i].error && r.responses[i].error.code) || ''));
+    if (dead.length) await tokDoc(uid).set({ tokens: FV.arrayRemove(...dead) }, { merge: true });
+  } catch (e) { console.error('notify', e); }
+}
 
 app.post('/resign', auth, async (req, res) => {
   const { code } = req.body || {};

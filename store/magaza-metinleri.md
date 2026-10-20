@@ -40,3 +40,7 @@ Kadim bir katedralde, altın varaklı büyücü taşlarla oynadığın sinematik
 - `assets/icon-only.png` → 512×512 mağaza simgesi için küçült (Play Console 512×512 PNG ister)
 - `store/feature-graphic-1024x500.png` → öne çıkan grafik
 - Ekran görüntüsü: telefonda oyundan en az 2 adet, 16:9 veya 9:16 (kendi telefonundan al)
+
+## Bildirimler eklendi – Veri güvenliği formunda ek beyan
+- Toplanan veri: **Cihaz veya diğer kimlikler** (FCM bildirim token'ı) → amaç: Uygulama işlevselliği; hesapla ilişkili; üçüncü taraf paylaşımı yok (Firebase hizmet sağlayıcı).
+- İzin: POST_NOTIFICATIONS (isteğe bağlı, uygulama içinden açılır).

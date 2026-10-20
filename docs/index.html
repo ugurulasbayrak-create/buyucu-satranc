@@ -241,6 +241,7 @@ input.fld:focus{outline:2px solid var(--gold); outline-offset:1px}
         <button id="hOnline" class="daily" type="button"><span class="ic">🌐</span><span><span class="t">Online Oyna</span><span class="d" id="hOnlineD">Arkadaşınla veya rastgele biriyle eşleş.</span></span></button>
         <div class="acct"><span id="hAcct">Giriş yapılmadı</span><span><button id="hLogin" type="button">Giriş yap</button> <button id="hLogout" type="button" hidden>Çıkış</button></span></div>
       </div>
+      <button id="hNotif" class="linkbtn" type="button" hidden>🔕 Bildirimler: Kapalı</button>
       <button id="hAbout" class="linkbtn" type="button">Hakkında ve lisanslar</button>
       <div class="seg" id="hLevel" role="group" aria-label="Zorluk">
         <button type="button" data-v="1" aria-pressed="false">Çırak</button>
@@ -2070,7 +2071,7 @@ function initFirebase() {
     firebase.initializeApp(window.FIREBASE_CONFIG);
     fbAuth = firebase.auth(); fbDb = firebase.firestore();
     try { fbDb.settings({ experimentalAutoDetectLongPolling: true, merge: true }); } catch (e) {}
-    fbAuth.onAuthStateChanged(u => { fbUser = u; refreshAccountUI(); });
+    fbAuth.onAuthStateChanged(u => { fbUser = u; refreshAccountUI(); if (typeof pushSync === 'function') pushSync(); });
     fbOn = true;
   } catch (e) { fbOn = false; }
   refreshAccountUI();
@@ -2121,7 +2122,56 @@ $('aGoogle').onclick = () => authBusy(async () => {
   } else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
   $('auth').hidden = true; toast('Hoş geldin ' + myName());
 });
-$('hLogout').onclick = async () => { sfx.click(); try { const cap = window.Capacitor; if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins.FirebaseAuthentication) await cap.Plugins.FirebaseAuthentication.signOut(); } catch (e) {} await fbAuth.signOut(); toast('Çıkış yapıldı'); };
+$('hLogout').onclick = async () => { sfx.click(); await pushUnsync(); try { const cap = window.Capacitor; if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins.FirebaseAuthentication) await cap.Plugins.FirebaseAuthentication.signOut(); } catch (e) {} await fbAuth.signOut(); toast('Çıkış yapıldı'); };
+
+/* ----- bildirimler (Android: yerel hatırlatma + push) ----- */
+const NOTIF_KEY = 'bs_notif_v1';
+const capN = () => { const c = window.Capacitor; return c && c.isNativePlatform && c.isNativePlatform() ? c.Plugins : null; };
+const notifOn = () => { try { return localStorage.getItem(NOTIF_KEY) === '1'; } catch (e) { return false; } };
+let pushToken = '';
+function refreshNotifBtn() { const b = $('hNotif'); b.hidden = !capN(); b.textContent = notifOn() ? '🔔 Bildirimler: Açık (her gün 20:00)' : '🔕 Bildirimler: Kapalı'; }
+async function dailyReminder(on) {
+  const P = capN(); if (!P || !P.LocalNotifications) return false;
+  const LN = P.LocalNotifications;
+  if (!on) { await LN.cancel({ notifications: [{ id: 1001 }] }); return true; }
+  const perm = await LN.requestPermissions(); if (perm.display !== 'granted') return false;
+  await LN.schedule({ notifications: [{ id: 1001, title: '🔮 Günlük Meydan Okuma hazır', body: 'Bugünün büyülü konumu seni bekliyor. Serini bozma!', schedule: { on: { hour: 20, minute: 0 }, allowWhileIdle: true } }] });
+  return true;
+}
+async function pushSync() {
+  const P = capN(); if (!P || !P.PushNotifications || !fbUser || !notifOn() || !API()) return;
+  const PN = P.PushNotifications;
+  try {
+    const perm = await PN.requestPermissions(); if (perm.receive !== 'granted') return;
+    if (!pushSync.bound) {
+      pushSync.bound = true;
+      PN.addListener('registration', t => { pushToken = t.value; api('/push-token', { token: t.value }).catch(() => {}); });
+      PN.addListener('pushNotificationReceived', n => toast((n.title || 'Bildirim') + (n.body ? ' · ' + n.body : '')));
+      PN.addListener('pushNotificationActionPerformed', a => {
+        const c = a.notification && a.notification.data && a.notification.data.code;
+        if (c && /^[A-Z2-9]{5}$/.test(c)) { saveRoom(c); refreshAccountUI(); setTimeout(() => { if (fbUser && !online.active) $('hResume').onclick(); }, 900); }
+      });
+    }
+    await PN.register();
+  } catch (e) {}
+}
+async function pushUnsync() { if (pushToken && fbUser) { try { await api('/push-token', { token: pushToken, remove: true }); } catch (e) {} } }
+$('hNotif').onclick = async () => {
+  sfx.click();
+  if (!capN()) { toast('Bildirimler Android uygulamasında çalışır.'); return; }
+  try {
+    if (notifOn()) { try { localStorage.setItem(NOTIF_KEY, '0'); } catch (e) {} await dailyReminder(false); await pushUnsync(); toast('Bildirimler kapatıldı'); }
+    else {
+      const ok = await dailyReminder(true);
+      if (!ok) { toast('Bildirim izni verilmedi'); return; }
+      try { localStorage.setItem(NOTIF_KEY, '1'); } catch (e) {}
+      toast('Bildirimler açıldı'); pushSync();
+    }
+  } catch (e) { toast('Bildirim ayarı yapılamadı'); }
+  refreshNotifBtn();
+};
+refreshNotifBtn();
+setTimeout(pushSync, 1500);
 
 /* ----- lobby ----- */
 $('hOnline').onclick = () => { sfx.click(); if (!fbUser) { $('auth').hidden = false; return; } openLobby(); };
@@ -2367,6 +2417,7 @@ $('lDelete').onclick = async () => {
   if (!fbUser) return;
   if (Date.now() > delArm) { delArm = Date.now() + 4000; $('lDelete').textContent = 'Emin misin? Tekrar dokun (geri alınamaz)'; setTimeout(() => { $('lDelete').textContent = 'Hesabımı sil'; }, 4000); return; }
   delArm = 0; $('lDelete').textContent = 'Hesabımı sil';
+  await pushUnsync();
   try { await fbUser.delete(); $('lobby').hidden = true; toast('Hesabın silindi'); openHome(); } catch (e) { lMsg(errText(e)); }
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && online.active) startHeartbeat(); });
