@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>shot</title>
+<body style="margin:0;background:#000">
+<iframe id="g" style="width:1080px;height:1920px;border:0;transform:scale(.3);transform-origin:0 0"></iframe>
+<script>
+// Magaza ekran goruntusu yardimcisi (oyun kodunu degistirmez)
+const g=document.getElementById('g');
+addEventListener('message',async e=>{
+  const d=e.data||{}; if(d.cmd!=='shot')return;
+  g.src=d.url;
+  await new Promise(r=>g.onload=r);
+  const w=g.contentWindow, raf=w.requestAnimationFrame;
+  w.requestAnimationFrame=function(cb){return raf.call(w,t=>{cb(t);if(w.__want){w.__want=false;const c=w.document.querySelector('canvas');w.__shot=c.toDataURL('image/png');}})};
+  await new Promise(r=>setTimeout(r,d.wait||5000));
+  if(d.click){const b=w.document.getElementById(d.click);b&&b.click();await new Promise(r=>setTimeout(r,d.wait2||3000));}
+  w.__want=true;
+  for(let i=0;i<50&&!w.__shot;i++)await new Promise(r=>setTimeout(r,100));
+  parent.postMessage({shot:w.__shot,name:d.name,w:w.innerWidth,h:w.innerHeight},'*');
+});
+</script>
