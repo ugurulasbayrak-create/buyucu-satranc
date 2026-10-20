@@ -17,3 +17,17 @@ addEventListener('message',async e=>{
   parent.postMessage({shot:w.__shot,name:d.name,w:w.innerWidth,h:w.innerHeight},'*');
 });
 </script>
+<script>
+// ?galeri : tek tikla indirilebilir reklam gorselleri (1080x1920)
+if(parent===window&&location.search.includes('galeri')){
+  g.style.display='none';document.body.style.cssText='background:#111;color:#eee;font:16px sans-serif;padding:12px';
+  const info=document.createElement('p');info.textContent='Gorseller hazirlaniyor (≈40 sn)... Her gorselin altindaki baglantidan indirebilirsin.';document.body.appendChild(info);
+  g.style.cssText='position:fixed;left:0;top:0;width:1080px;height:1920px;opacity:0;pointer-events:none;border:0';g.style.display='block';
+  const base='/buyucu-satranc/';
+  const jobs=[{n:'reklam-1-ana-tahta',u:base+'?v=g1',c:'hPlay'},{n:'reklam-2-oyun',u:base+'?v=g2&fen=r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR_w_KQkq_-_4_4',c:'hPlay'},{n:'reklam-3-vezir-hamlesi',u:base+'?v=g3&fen=rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR_w_KQkq_-_1_3',c:'hPlay'}];
+  (async()=>{for(const j of jobs){
+    postMessage({cmd:'shot',url:j.u,name:j.n,click:j.c,wait:6000},'*');
+    await new Promise(r=>addEventListener('message',function f(e){if(e.data&&e.data.shot&&e.data.name===j.n){removeEventListener('message',f);const a=document.createElement('a');a.href=e.data.shot;a.download=j.n+'.png';a.textContent='⬇ '+j.n+'.png';a.style.cssText='display:block;color:#f5c46b;margin:6px 0';const im=document.createElement('img');im.src=e.data.shot;im.style.cssText='height:360px;display:block;margin-top:12px';document.body.append(im,a);r();}}));
+  }info.textContent='Hazir. Baglantilara dokunup indir.';})();
+}
+</script>
