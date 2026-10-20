@@ -1,0 +1,59 @@
+name: Android AAB
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: android-actions/setup-android@v3
+      - name: Bağımlılıklar ve web dosyaları
+        run: |
+          npm install
+          npm run libs
+      - name: Android projesi
+        run: |
+          npx cap add android
+          npm run icons
+          npx cap sync android
+      - name: google-services.json
+        run: |
+          test -f android-config/google-services.json || { echo "android-config/google-services.json yok"; exit 1; }
+          cp android-config/google-services.json android/app/google-services.json
+      - name: İmza ayarı ve sürüm
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          RUN_NO: ${{ github.run_number }}
+        run: |
+          test -n "$KS_B64" || { echo "KEYSTORE_BASE64 secret yok"; exit 1; }
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload.keystore"
+          python3 - <<'PY'
+          import os, re
+          p = 'android/app/build.gradle'
+          s = open(p).read()
+          sign = ("    signingConfigs {\n        release {\n"
+                  "            storeFile file(System.getenv('RUNNER_TEMP') + '/upload.keystore')\n"
+                  "            storePassword System.getenv('KS_PASS')\n"
+                  "            keyAlias 'upload'\n"
+                  "            keyPassword System.getenv('KS_PASS')\n        }\n    }\n")
+          s = s.replace("android {\n", "android {\n" + sign, 1)
+          s = s.replace("buildTypes {\n        release {\n", "buildTypes {\n        release {\n            signingConfig signingConfigs.release\n", 1)
+          s = re.sub(r"versionCode \d+", "versionCode " + os.environ['RUN_NO'], s, 1)
+          open(p, 'w').write(s)
+          PY
+          grep -n "signingConfig" android/app/build.gradle
+      - name: AAB derle
+        env:
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: cd android && ./gradlew bundleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: buyucu-satranc-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
