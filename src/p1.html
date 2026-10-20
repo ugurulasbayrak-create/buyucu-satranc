@@ -1,0 +1,288 @@
+<title>3D Büyücü Satranç</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Almendra:wght@400;700&family=Spectral:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Düzen: tam ekran 3D sahne; üstte yarı saydam hap şeklinde kontrol çubuğu, sağda açılır panel, altta kontrol ipucu.
+   Palet: sıcak kumtaşı salon, siyah tahta, altın detay, ateş turuncusu. Tek görünüm, koyu. */
+:root{
+  --night:#0e0a07; --ink:rgba(16,12,9,.80); --panel:#15100c; --line:rgba(224,182,79,.34);
+  --text:#f3ead8; --muted:#b9a98c; --gold:#e0b64f; --gold-ink:#241a05;
+  --ember:#ff8a3d; --ivory:#efe3c7;
+  --font-display:'Almendra', Georgia, 'Times New Roman', serif;
+  --font-body:'Spectral', Georgia, 'Times New Roman', serif;
+  color-scheme: dark;
+}
+[hidden]{display:none !important}
+html,body{height:100%}
+body{
+  background:var(--night); color:var(--text); font:15px/1.4 var(--font-body);
+  box-sizing:border-box; overflow:hidden;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:10px;
+}
+#stage{position:relative; height:100%; min-width:0; border-radius:14px; overflow:hidden; border:1px solid var(--line); background:var(--night)}
+#stage canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab}
+#stage canvas:active{cursor:grabbing}
+#hud{position:absolute; top:10px; left:10px; right:10px; z-index:3; display:flex; flex-wrap:wrap; gap:8px; align-items:center; pointer-events:none}
+#hud > *{pointer-events:auto}
+.pill{
+  display:inline-flex; align-items:center; gap:9px; padding:7px 15px; border-radius:999px; border:1px solid var(--line);
+  background:var(--ink); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); white-space:nowrap;
+}
+.brand{font:700 17px var(--font-display); letter-spacing:.16em; color:var(--gold); text-transform:uppercase}
+#chipText{overflow:hidden; text-overflow:ellipsis; max-width:46vw}
+.tag{font-size:13px; color:var(--gold); border:1px solid var(--line); border-radius:999px; padding:1px 10px; background:rgba(224,182,79,.1)}
+.dot{width:10px; height:10px; border-radius:50%; background:var(--ivory); box-shadow:0 0 9px var(--ivory); flex:none}
+#chip[data-mood="foe"] .dot{background:var(--ember); box-shadow:0 0 10px var(--ember); animation:pulse 1s ease-in-out infinite}
+#chip[data-mood="check"] .dot{background:#ff4a4a; box-shadow:0 0 12px #ff4a4a; animation:pulse .6s ease-in-out infinite}
+#chip[data-mood="end"] .dot{background:var(--muted); box-shadow:none}
+@keyframes pulse{50%{transform:scale(1.5); opacity:.55}}
+.bar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; width:100%}
+.sep{width:1px; height:22px; background:var(--line); margin:0 2px}
+button{
+  font:600 14px var(--font-body); color:var(--text); background:var(--ink); border:1px solid var(--line);
+  border-radius:999px; padding:7px 15px; cursor:pointer; min-height:36px; white-space:nowrap;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+}
+button:hover:not(:disabled){border-color:var(--gold); color:#fff}
+button:disabled{opacity:.42; cursor:default}
+button:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+button[aria-pressed="true"]{border-color:var(--gold); color:var(--gold); background:rgba(40,30,14,.88)}
+button.primary{background:var(--gold); color:var(--gold-ink); border-color:var(--gold)}
+button.primary:hover:not(:disabled){background:#efc873; color:var(--gold-ink)}
+#foot{position:absolute; left:10px; bottom:10px; z-index:3; font-size:12.5px; color:var(--muted); max-width:calc(100% - 70px); white-space:normal; border-radius:14px; padding:6px 14px}
+#foot b{color:var(--gold); font-weight:600}
+#capBox{position:absolute; right:12px; bottom:12px; z-index:3; font-size:13px; color:var(--muted)}
+#capBox b{color:var(--gold); font-variant-numeric:tabular-nums}
+#showUi{position:absolute; right:12px; bottom:56px; z-index:4; padding:6px 12px}
+#drawer{
+  position:absolute; top:112px; right:10px; bottom:54px; width:300px; max-width:calc(100% - 20px); z-index:3;
+  display:flex; flex-direction:column; gap:9px; overflow-y:auto; padding:2px;
+}
+.card{background:var(--ink); border:1px solid var(--line); border-radius:14px; padding:10px 13px; min-width:0; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px)}
+.k{font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted)}
+.turn{display:flex; align-items:center; gap:12px}
+.swatch{width:24px; height:24px; border-radius:50%; flex:none; border:2px solid var(--line); background:var(--ivory)}
+.swatch.b{background:#0e0e13; border-color:var(--gold)}
+.turn .v{font-size:16px; font-weight:600}
+.adv{margin-left:auto; font-variant-numeric:tabular-nums; color:var(--gold); font-weight:600}
+.tray{display:flex; align-items:center; gap:10px; min-height:28px}
+.tray .k{flex:0 0 auto; white-space:nowrap; min-width:7.4em}
+.glyphs{display:flex; flex-wrap:wrap; font-size:21px; line-height:1.1; min-height:24px; min-width:0}
+.glyphs span{margin-right:-3px}
+.glyphs .gw{color:#f0e0b0} .glyphs .gb{color:#ff9a55}
+.seg{display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; margin-top:6px}
+.seg button{padding:6px 6px; border-radius:10px}
+.moves{display:flex; flex-direction:column; min-height:110px; flex:1 1 140px}
+#moveList{margin:6px 0 0; padding:0; list-style:none; overflow-y:auto; flex:1 1 auto; min-height:0; font-variant-numeric:tabular-nums}
+#moveList li{display:grid; grid-template-columns:2.4em 1fr 1fr; padding:2px 0; border-bottom:1px solid rgba(224,182,79,.14)}
+#moveList .n{color:var(--muted)}
+#moveList .last{color:var(--gold); font-weight:600}
+.empty{color:var(--muted); font-size:13.5px}
+.overlay{position:absolute; inset:0; z-index:6; display:grid; place-items:center; padding:16px; background:rgba(10,7,4,.6)}
+.dialog{background:rgba(20,15,10,.96); border:1px solid var(--gold); border-radius:16px; padding:22px 24px; text-align:center; max-width:min(380px,100%)}
+.dialog h2{font:700 32px/1.1 var(--font-display); margin:0 0 8px; color:var(--gold); text-wrap:balance}
+.dialog p{margin:0 0 16px; color:var(--muted)}
+.dialog button{border-radius:12px}
+.promo-row{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+.promo-row button{display:grid; gap:2px; justify-items:center; padding:10px 4px}
+.promo-row .g{font-size:34px; line-height:1}
+#stage.hide-ui #hud, #stage.hide-ui #drawer, #stage.hide-ui #foot, #stage.hide-ui #capBox{display:none}
+@media (max-width:860px){
+  .brand{font-size:14px; padding:6px 12px}
+  .pill{padding:6px 12px}
+  button{padding:6px 11px; font-size:13px; min-height:34px}
+  #hud{gap:6px}
+  #foot{display:none}
+  #capBox{bottom:auto; top:104px; right:10px}
+  #drawer{top:auto; bottom:10px; left:10px; right:10px; width:auto; max-width:none; max-height:48%}
+  .bar{overflow-x:auto; flex-wrap:nowrap; padding-bottom:2px; scrollbar-width:none}
+}
+
+/* --- ana menü, paylaşım, bildirim, mobil dock --- */
+#home{background:radial-gradient(ellipse at 50% 35%, rgba(40,26,10,.55), rgba(8,5,3,.82)); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:8}
+.hero{width:min(420px,100%); text-align:center; display:grid; gap:14px}
+.hero .crest{font-size:34px; color:var(--gold); text-shadow:0 0 22px rgba(224,182,79,.7); line-height:1}
+.hero h1{font:700 clamp(34px,9vw,52px)/1 var(--font-display); letter-spacing:.1em; margin:0; color:var(--gold); text-transform:uppercase; text-shadow:0 2px 18px rgba(224,150,40,.45)}
+.hero .sub{margin:0; color:var(--muted); font-size:15px}
+.hero .big{width:100%; padding:14px 18px; font-size:17px; border-radius:16px; min-height:52px}
+.daily{display:flex; align-items:center; gap:12px; text-align:left; width:100%; padding:12px 16px; border-radius:16px; min-height:60px; border-color:var(--gold); background:linear-gradient(135deg, rgba(60,40,12,.92), rgba(22,15,8,.92))}
+.daily .t{font:700 17px var(--font-display); color:var(--gold); letter-spacing:.04em}
+.daily .d{font-size:12.5px; color:var(--muted); display:block; font-weight:400}
+.daily .ic{font-size:26px}
+.stats{display:grid; grid-template-columns:repeat(4,1fr); gap:6px}
+.stat{background:var(--ink); border:1px solid var(--line); border-radius:12px; padding:8px 4px}
+.stat b{display:block; font:700 22px var(--font-display); color:var(--gold); font-variant-numeric:tabular-nums}
+.stat span{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.dialog .row2{margin-top:6px}
+#bannerStat{color:var(--text); font-size:14.5px; margin:-6px 0 14px}
+#toast{position:absolute; left:50%; bottom:92px; transform:translateX(-50%); z-index:9; background:rgba(20,15,10,.96); border:1px solid var(--gold); color:var(--text); padding:8px 16px; border-radius:999px; font-size:14px; pointer-events:none; opacity:0; transition:opacity .25s}
+#toast.on{opacity:1}
+#shareImg{width:100%; max-height:46vh; object-fit:contain; border-radius:12px; border:1px solid var(--line); margin-bottom:12px; background:#000}
+#share .dialog{width:min(380px,100%)}
+#dock{display:none; position:absolute; left:10px; right:10px; bottom:max(10px, env(safe-area-inset-bottom, 0px)); z-index:4; gap:6px; justify-content:space-between}
+#dock button{flex:1 1 0; display:grid; gap:1px; justify-items:center; padding:7px 2px; border-radius:16px; min-height:56px; font-size:11.5px; letter-spacing:.02em}
+#dock .g{font-size:20px; line-height:1}
+#dock button.main{background:var(--gold); color:var(--gold-ink); border-color:var(--gold)}
+.mob-only{display:none}
+@media (max-width:860px), (pointer:coarse){
+  .bar{display:none}
+  #dock{display:flex}
+  .mob-only{display:inline-flex}
+  #capBox{top:62px; bottom:auto}
+  #drawer{top:auto; bottom:80px; max-height:52%}
+  #showUi{bottom:80px}
+  #toast{bottom:100px}
+}
+@media (max-width:560px){ .brand{display:none} #chip{max-width:100%} #chipText{max-width:52vw} }
+
+input.fld{font:16px var(--font-body); background:rgba(0,0,0,.45); color:var(--text); border:1px solid var(--line); border-radius:12px; padding:11px 13px; width:100%; box-sizing:border-box; min-height:44px}
+input.fld:focus{outline:2px solid var(--gold); outline-offset:1px}
+.stack{display:grid; gap:8px; text-align:left}
+.msg{min-height:1.3em; font-size:13.5px; color:#ff9a7a; margin:0}
+.msg.ok{color:#9ad9a4}
+.code{font:700 38px var(--font-display); letter-spacing:.3em; color:var(--gold); text-align:center; padding:6px 0}
+.acct{display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13.5px; color:var(--muted)}
+.acct button{padding:5px 11px; min-height:30px; font-size:12.5px}
+.linkbtn{background:none; border:none; color:var(--muted); text-decoration:underline; font-size:12.5px; padding:4px; min-height:0; backdrop-filter:none}
+@media (prefers-reduced-motion:reduce){ .dot{animation:none !important} }
+</style>
+
+<div id="stage">
+  <div id="hud">
+    <div class="pill brand">3D Büyücü Satranç</div>
+    <div class="pill" id="chip" data-mood="you"><span class="dot"></span><span id="chipText" aria-live="polite">Hazırlanıyor</span><span class="tag" id="sideTag">Beyaz oynuyorsun</span></div>
+    <div class="bar">
+      <button id="bHome" type="button">☰ Menü</button>
+      <button id="bSide" type="button">Siyah Oyna</button>
+      <button id="bAI" type="button">YZ Hamlesi</button>
+      <button id="bNew" class="primary" type="button">Yeni Oyun</button>
+      <span class="sep"></span>
+      <button id="bUndo" type="button">Geri Al</button>
+      <button id="bHint" type="button">İpucu</button>
+      <span class="sep"></span>
+      <button id="cPlayer" type="button" data-cam="player" aria-pressed="true">Oyuncu Kamerası</button>
+      <button id="cTop" type="button" data-cam="top" aria-pressed="false">Tepeden</button>
+      <button id="cSide" type="button" data-cam="side" aria-pressed="false">Yan</button>
+      <button id="cHall" type="button" data-cam="hall" aria-pressed="false">Katedral</button>
+      <span class="sep"></span>
+      <button id="bPanel" type="button" aria-pressed="false">Panel</button>
+      <button id="bHide" type="button">Arayüzü Gizle [H]</button>
+    </div>
+  </div>
+  <aside id="drawer" hidden aria-label="Oyun paneli">
+    <section class="card turn">
+      <span class="swatch" id="turnSwatch"></span>
+      <div><div class="k">Sıra</div><div class="v" id="turnText">Beyaz</div></div>
+      <div class="adv" id="advantage"></div>
+    </section>
+    <section class="card">
+      <div class="tray"><span class="k">Senin aldıkların</span><div class="glyphs" id="trayYou"></div></div>
+      <div class="tray"><span class="k">Rakibin aldıkları</span><div class="glyphs" id="trayFoe"></div></div>
+    </section>
+    <section class="card">
+      <div class="k">Zorluk</div>
+      <div class="seg" id="segLevel" role="group" aria-label="Zorluk">
+        <button type="button" data-v="1" aria-pressed="false">Çırak</button>
+        <button type="button" data-v="2" aria-pressed="true">Büyücü</button>
+        <button type="button" data-v="3" aria-pressed="false">Üstat</button>
+      </div>
+      <div class="seg"><button id="bSound" type="button" aria-pressed="true">Ses: açık</button><button id="bMusic" type="button" aria-pressed="true">Müzik: açık</button></div>
+    </section>
+    <section class="card mob-only" style="display:grid; gap:6px; grid-template-columns:1fr 1fr">
+      <button id="dSide" type="button">Siyah Oyna</button><button id="dAI" type="button">YZ Hamlesi</button>
+      <button id="dHide" type="button">Arayüzü Gizle</button><button id="bResign" type="button" hidden>Pes et</button><button id="dDaily" type="button">Günlük Meydan Okuma</button>
+    </section>
+    <section class="card moves"><div class="k">Hamleler</div><ol id="moveList"></ol></section>
+  </aside>
+  <div id="foot" class="pill"><span><b>Kontroller:</b> Taşa tıkla ve hedefi seç · Sol sürükle: döndür · Sağ sürükle: kaydır · Tekerlek: yakınlaştır · WASD + R/F: uçuş · H: arayüzü gizle</span></div>
+  <div id="capBox" class="pill">Alınan taşlar · Beyaz: <b id="capW">0</b> | Siyah: <b id="capB">0</b></div>
+  <button id="showUi" type="button" hidden>Arayüzü Göster</button>
+  <div id="fail" class="overlay" hidden><div class="dialog"><h2>Yüklenemedi</h2><p>3D kütüphaneleri açılamadı. Sayfayı yenileyip tekrar dene.</p></div></div>
+  <div id="banner" class="overlay" hidden>
+    <div class="dialog"><h2 id="bannerTitle">Oyun bitti</h2><p id="bannerText"></p><p id="bannerStat"></p><div class="row2"><button id="bShare" class="primary" type="button">Paylaş ✦</button><button id="bAgain" type="button">Yeniden oyna</button></div><div class="row2"><button id="bHome2" type="button">Ana menü</button><button id="bNext" type="button">Yeni oyun</button></div></div>
+  </div>
+  <div id="promo" class="overlay" hidden>
+    <div class="dialog"><h2>Terfi</h2><p>Piyonun yeni gücünü seç.</p>
+      <div class="promo-row">
+        <button type="button" data-p="q"><span class="g">♕</span>Vezir</button>
+        <button type="button" data-p="r"><span class="g">♖</span>Kale</button>
+        <button type="button" data-p="b"><span class="g">♗</span>Fil</button>
+        <button type="button" data-p="n"><span class="g">♘</span>At</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="home" class="overlay" hidden>
+    <div class="hero">
+      <div class="crest">✦</div>
+      <h1>3D Büyücü<br>Satranç</h1>
+      <p class="sub">Kadim salonda büyülü taşlarla 3D satranç.</p>
+      <div class="stats">
+        <div class="stat"><b id="stWin">0</b><span>Galibiyet</span></div>
+        <div class="stat"><b id="stStreak">0</b><span>Seri 🔥</span></div>
+        <div class="stat"><b id="stDaily">0</b><span>Günlük seri</span></div>
+        <div class="stat"><b id="stBest">0</b><span>En iyi seri</span></div>
+      </div>
+      <button id="hPlay" class="primary big" type="button">Oyna</button>
+      <button id="hDaily" class="daily" type="button"><span class="ic">🔮</span><span><span class="t" id="hDailyT">Günlük Meydan Okuma</span><span class="d" id="hDailyD">Bugünün özel konumu. Herkes aynı sınavda.</span></span></button>
+      <div id="hOnlineBox" class="stack" hidden>
+        <button id="hOnline" class="daily" type="button"><span class="ic">🌐</span><span><span class="t">Online Oyna</span><span class="d" id="hOnlineD">Arkadaşınla veya rastgele biriyle eşleş.</span></span></button>
+        <div class="acct"><span id="hAcct">Giriş yapılmadı</span><span><button id="hLogin" type="button">Giriş yap</button> <button id="hLogout" type="button" hidden>Çıkış</button></span></div>
+      </div>
+      <button id="hAbout" class="linkbtn" type="button">Hakkında ve lisanslar</button>
+      <div class="seg" id="hLevel" role="group" aria-label="Zorluk">
+        <button type="button" data-v="1" aria-pressed="false">Çırak</button>
+        <button type="button" data-v="2" aria-pressed="true">Büyücü</button>
+        <button type="button" data-v="3" aria-pressed="false">Üstat</button>
+      </div>
+    </div>
+  </div>
+  <div id="share" class="overlay" hidden>
+    <div class="dialog"><img id="shareImg" alt="Paylaşım kartı"><div class="row2"><button id="shShare" class="primary" type="button">Paylaş</button><button id="shCopy" type="button">Metni kopyala</button></div><div class="row2"><button id="shClose" type="button" style="grid-column:1/3">Kapat</button></div><p style="margin:10px 0 0;font-size:12.5px">Görsele uzun basarak da kaydedebilirsin.</p></div>
+  </div>
+
+  <div id="auth" class="overlay" hidden>
+    <div class="dialog stack" style="width:min(380px,100%)"><h2 style="text-align:center">Giriş</h2>
+      <button id="aGoogle" class="primary" type="button">Google ile giriş</button>
+      <p style="text-align:center;margin:0;color:var(--muted)">veya e-posta ile</p>
+      <input id="aMail" class="fld" type="email" placeholder="E-posta" autocomplete="email" inputmode="email">
+      <input id="aPass" class="fld" type="password" placeholder="Şifre (en az 6 karakter)" autocomplete="current-password">
+      <div class="row2"><button id="aLogin" class="primary" type="button">Giriş yap</button><button id="aRegister" type="button">Kayıt ol</button></div>
+      <button id="aReset" class="linkbtn" type="button">Şifremi unuttum</button>
+      <p id="aMsg" class="msg" role="alert"></p>
+      <button id="aClose" type="button">Kapat</button>
+    </div>
+  </div>
+  <div id="lobby" class="overlay" hidden>
+    <div class="dialog stack" style="width:min(380px,100%)"><h2 style="text-align:center">Online</h2>
+      <p id="lUser" style="text-align:center;margin:0"></p>
+      <button id="lQuick" class="primary" type="button">⚡ Hızlı eşleş</button>
+      <button id="lCreate" type="button">Oda kur (arkadaşınla)</button>
+      <div class="row2"><input id="lCode" class="fld" maxlength="5" placeholder="Oda kodu" autocapitalize="characters" style="text-transform:uppercase"><button id="lJoin" type="button">Katıl</button></div>
+      <div id="lWait" hidden><div class="code" id="lWaitCode"></div><p style="margin:0;text-align:center">Rakip bekleniyor… Kodu arkadaşına gönder.</p><div class="row2" style="margin-top:8px"><button id="lShare" type="button">Kodu paylaş</button><button id="lCancel" type="button">İptal</button></div></div>
+      <p id="lMsg" class="msg" role="alert"></p>
+      <button id="lClose" type="button">Kapat</button>
+      <button id="lDelete" class="linkbtn" type="button">Hesabımı sil</button>
+    </div>
+  </div>
+  <div id="about" class="overlay" hidden>
+    <div class="dialog stack" style="width:min(400px,100%); max-height:88%; overflow:auto"><h2 style="text-align:center">Hakkında</h2>
+      <p>3D Büyücü Satranç bağımsız bir yapımdır. Modeller, sahne, ses ve kod bu proje için özgün olarak hazırlanmıştır. Herhangi bir şirketle bağlantısı yoktur.</p>
+      <p style="font-size:13px">Kullanılan açık kaynak yazılımlar:<br>• three.js (MIT Lisansı) © three.js yazarları<br>• chess.js (BSD-2 Lisansı) © Jeff Hlywa<br>• Firebase SDK (Apache-2.0) © Google LLC<br>• Almendra ve Spectral yazı tipleri (SIL Open Font Lisansı)</p>
+      <button id="abClose" type="button">Kapat</button>
+    </div>
+  </div>
+  <div id="toast" role="status"></div>
+  <div id="dock">
+    <button id="dHome" type="button"><span class="g">☰</span>Menü</button>
+    <button id="dUndo" type="button"><span class="g">↶</span>Geri</button>
+    <button id="dHint" type="button" class="main"><span class="g">✦</span>İpucu</button>
+    <button id="dCam" type="button"><span class="g">◎</span>Kamera</button>
+    <button id="dPanel" type="button"><span class="g">≡</span>Panel</button>
+  </div>
+</div>

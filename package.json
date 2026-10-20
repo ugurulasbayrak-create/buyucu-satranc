@@ -1,0 +1,20 @@
+{
+  "name": "buyucu-satranc",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "libs": "node fetch-libs.mjs",
+    "icons": "npx capacitor-assets generate --android",
+    "sync": "npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor-firebase/authentication": "^7.0.0",
+    "firebase": "^11.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0"
+  }
+}

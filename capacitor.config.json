@@ -1,0 +1,17 @@
+{
+  "appId": "com.ulas.buyucusatranc",
+  "appName": "3D Büyücü Satranç",
+  "webDir": "www",
+  "backgroundColor": "#0e0a07",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": [
+        "google.com"
+      ]
+    }
+  }
+}
