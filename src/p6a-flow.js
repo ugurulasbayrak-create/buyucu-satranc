@@ -5,7 +5,7 @@ const GL = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕' };
 const PV = { p: 1, n: 3, b: 3, r: 5, q: 9 };
 const TR = { K: 'Ş', Q: 'V', R: 'K', B: 'F', N: 'A' };
 const trSAN = s => s.replace(/[KQRBN]/g, m => TR[m]);
-function setStatus(text, mood) { chipText.textContent = text; chip.dataset.mood = mood || 'you'; $('sideTag').textContent = online.active ? 'vs ' + online.opp : (playerColor === 'w' ? 'Beyaz oynuyorsun' : 'Siyah oynuyorsun'); }
+function setStatus(text, mood) { chipText.textContent = text; chip.dataset.mood = mood || 'you'; $('sideTag').textContent = online.active ? 'vs ' + online.opp + (online.code ? ' · ' + online.code : '') + (online.oppOff ? ' ⚠' : '') : (playerColor === 'w' ? 'Beyaz oynuyorsun' : 'Siyah oynuyorsun'); }
 function syncButtons() {
   $('bUndo').disabled = online.active || busy || animating || game.history().length - baseLen < (game.turn() === playerColor ? 2 : 1);
   $('bHint').disabled = busy || animating || gameOver || game.turn() !== playerColor || online.active;

@@ -1,6 +1,10 @@
 
 /* ---------- accounts + online 2-player (Firebase Auth + Firestore). Inactive unless firebase-config.js is filled in. ---------- */
 let fbAuth = null, fbDb = null, fbUser = null, fbOn = false;
+const ROOM_KEY = 'wizard-chess-room';
+const saveRoom = c => { try { c ? localStorage.setItem(ROOM_KEY, c) : localStorage.removeItem(ROOM_KEY); } catch (e) {} };
+const savedRoom = () => { try { return localStorage.getItem(ROOM_KEY) || ''; } catch (e) { return ''; } };
+let hbTimer = 0;
 let unsub = null, onlineDoc = null, pumping = false, remoteEndShown = false, resignArm = 0;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -25,6 +29,9 @@ function refreshAccountUI() {
   if (!fbOn) return;
   $('hAcct').textContent = fbUser ? '👤 ' + myName() : 'Giriş yapılmadı';
   $('hLogin').hidden = !!fbUser; $('hLogout').hidden = !fbUser;
+  const rc = savedRoom();
+  $('hResume').hidden = !(fbUser && rc && !online.active);
+  $('hResumeD').textContent = 'Oda ' + rc + ' · kaldığın yerden devam et';
 }
 const AUTH_ERR = {
   'auth/invalid-credential': 'E-posta veya şifre hatalı.', 'auth/wrong-password': 'E-posta veya şifre hatalı.', 'auth/user-not-found': 'Bu e-posta ile kayıt bulunamadı.',
@@ -66,6 +73,14 @@ $('hLogout').onclick = async () => { sfx.click(); try { const cap = window.Capac
 
 /* ----- lobby ----- */
 $('hOnline').onclick = () => { sfx.click(); if (!fbUser) { $('auth').hidden = false; return; } openLobby(); };
+$('hResume').onclick = async () => {
+  sfx.click(); const code = savedRoom(); if (!code) return;
+  try {
+    const snap = await gamesRef(code).get();
+    if (!snap.exists || snap.data().status === 'done') { saveRoom(''); refreshAccountUI(); toast('Bu maç artık yok veya bitmiş'); return; }
+    await joinRoom(code); closeHome(); listen(code);
+  } catch (e) { toast(e.message || 'Bağlanılamadı'); }
+};
 function openLobby() { lMsg(''); $('lWait').hidden = true; $('lUser').textContent = '👤 ' + myName(); $('lobby').hidden = false; $('home').hidden = true; }
 $('lClose').onclick = () => { cancelWaiting(); $('lobby').hidden = true; openHome(); };
 $('lCancel').onclick = () => { cancelWaiting(); $('lWait').hidden = true; lMsg(''); };
@@ -135,12 +150,21 @@ function onGameSnap(d) {
     const color = d.w === fbUser.uid ? 'w' : d.b === fbUser.uid ? 'b' : null;
     if (!color) return;
     online.opp = (color === 'w' ? d.bName : d.wName) || 'Rakip';
-    online.color = color; online.active = true;
+    online.color = color; online.active = true; online.oppOff = false; saveRoom(online.code); startHeartbeat();
     $('lobby').hidden = true; $('home').hidden = true; $('lWait').hidden = true;
     pendingSide = color; newGame({ online: true });
+    if ((d.moves || []).length) {
+      d.moves.forEach(m => game.move({ from: m.f, to: m.t, promotion: m.p || undefined }));
+      const h = game.history({ verbose: true }); lastMove = { from: h[h.length - 1].from, to: h[h.length - 1].to };
+      checkSq = game.in_check() ? findKing(game.turn()) : null;
+      clearSelection(); placeAll(false); paintSquares(); refreshUI(); updateStatus(); setBusy(game.turn() !== playerColor);
+    }
     toast('Rakip: ' + online.opp);
   }
   if (!online.active) return;
+  const seen = d[online.color === 'w' ? 'bSeen' : 'wSeen'], ms = seen && seen.toMillis ? seen.toMillis() : 0;
+  const off = d.status === 'playing' && ms > 0 && Date.now() - ms > 90000;
+  if (off !== online.oppOff) { online.oppOff = off; updateStatus(); if (off) toast('Rakibin bağlantısı koptu, dönmesini bekle'); }
   if (d.status === 'done' && !gameOver && !remoteEndShown) {
     // wait until pending moves are shown, then show the result
     pumpMoves(d.moves || []).then(() => {
@@ -185,12 +209,31 @@ async function onlineSend(mv, tries) {
       tx.update(ref, { moves: moves.concat([{ f: mv.from, t: mv.to, p: mv.promotion || '' }]), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
     });
   } catch (e) {
-    if (tries < 4 && online.active) { toast('Bağlantı sorunu, tekrar deneniyor…'); await sleep(1500 * (tries + 1)); onlineSend(mv, tries + 1); }
-    else toast('Hamle gönderilemedi. İnternetini kontrol et.');
+    if (tries < 8 && online.active && !gameOver) { if (tries === 0) toast('Bağlantı sorunu, tekrar deneniyor…'); await sleep(Math.min(8000, 1500 * (tries + 1))); onlineSend(mv, tries + 1); }
+    else if (online.active) resyncFromServer();
   }
+}
+async function resyncFromServer() {
+  try {
+    const d = (await gamesRef(online.code).get()).data(); if (!d) return;
+    if (animating) { await sleep(600); }
+    epoch++; game = new Chess();
+    (d.moves || []).forEach(m => game.move({ from: m.f, to: m.t, promotion: m.p || undefined }));
+    const h = game.history({ verbose: true });
+    lastMove = h.length ? { from: h[h.length - 1].from, to: h[h.length - 1].to } : null;
+    checkSq = game.in_check() ? findKing(game.turn()) : null;
+    clearSelection(); placeAll(false); paintSquares(); refreshUI(); updateStatus(); setBusy(game.turn() !== playerColor);
+    toast('Bağlantı sorunu: tahta sunucuyla eşitlendi');
+  } catch (e) { toast('Hamle gönderilemedi. İnternetini kontrol et.'); }
+}
+function startHeartbeat() {
+  clearInterval(hbTimer);
+  const beat = () => { if (!online.active || document.hidden || !online.code) return; gamesRef(online.code).update({ [online.color === 'w' ? 'wSeen' : 'bSeen']: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {}); };
+  beat(); hbTimer = setInterval(beat, 20000);
 }
 function remoteEnd(res, title, text) {
   if (gameOver) return;
+  saveRoom(''); clearInterval(hbTimer);
   gameOver = true; clearSelection(); setBusy(false);
   $('bannerTitle').textContent = title; $('bannerText').textContent = text; $('banner').hidden = false;
   setStatus(title, 'end');
@@ -201,6 +244,7 @@ function remoteEnd(res, title, text) {
 }
 async function onlineFinish(res) {
   if (!online.code) return;
+  saveRoom(''); clearInterval(hbTimer);
   const result = res === 'draw' ? 'draw' : res === 'win' ? online.color : (online.color === 'w' ? 'b' : 'w');
   try { await gamesRef(online.code).update({ status: 'done', result, reason: res === 'draw' ? 'draw' : 'mate' }); } catch (e) {}
 }
@@ -210,7 +254,8 @@ function onlineLeave(abandon) {
     gamesRef(online.code).update({ status: 'done', result, reason: 'resign' }).catch(() => {});
   }
   if (unsub) { unsub(); unsub = null; }
-  online.active = false; online.code = ''; onlineDoc = null; $('bResign').hidden = true;
+  clearInterval(hbTimer); if (abandon || gameOver) saveRoom('');
+  online.active = false; online.oppOff = false; online.code = ''; onlineDoc = null; $('bResign').hidden = true;
 }
 $('bResign').onclick = () => {
   if (!online.active || gameOver) return;
@@ -227,4 +272,5 @@ $('lDelete').onclick = async () => {
   delArm = 0; $('lDelete').textContent = 'Hesabımı sil';
   try { await fbUser.delete(); $('lobby').hidden = true; toast('Hesabın silindi'); openHome(); } catch (e) { lMsg(errText(e)); }
 };
+document.addEventListener('visibilitychange', () => { if (!document.hidden && online.active) startHeartbeat(); });
 initFirebase();

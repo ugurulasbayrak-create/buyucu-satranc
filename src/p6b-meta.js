@@ -12,7 +12,7 @@ function loadStats() {
 }
 function saveStats() { try { localStorage.setItem(STORE_KEY, JSON.stringify(mem)); } catch (e) {} }
 
-const online = { active: false, opp: '', code: '', color: 'w' };
+const online = { active: false, opp: '', code: '', color: 'w', oppOff: false };
 let daily = false, baseLen = 0, dailyNo = 0, lastResult = null;
 const curLevel = () => (daily ? 2 : level);
 function todayNo() { const d = new Date(); return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2026, 0, 1)) / 864e5) + 1; }
