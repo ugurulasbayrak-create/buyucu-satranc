@@ -17,7 +17,7 @@ addEventListener('message',async e=>{
   let out=w.__shot;
   try{
     await new Promise((res,rej)=>{const sc=w.document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';sc.onload=res;sc.onerror=rej;w.document.head.appendChild(sc);});
-    const ov=await w.html2canvas(w.document.body,{backgroundColor:null,ignoreElements:el=>el.tagName==='CANVAS',scale:1,width:w.innerWidth,height:w.innerHeight,logging:false});
+    const ov=await w.html2canvas(w.document.body,{backgroundColor:null,ignoreElements:el=>el.tagName==='CANVAS',scale:1,width:w.innerWidth,height:w.innerHeight,logging:false,onclone:(doc)=>{doc.documentElement.style.background='transparent';doc.body.style.background='transparent';doc.querySelectorAll('canvas').forEach(c=>c.style.visibility='hidden');}});
     const base=new Image();base.src=w.__shot;await base.decode();
     const c=document.createElement('canvas');c.width=base.width;c.height=base.height;const x=c.getContext('2d');x.drawImage(base,0,0);x.drawImage(ov,0,0,c.width,c.height);
     out=c.toDataURL('image/png');
@@ -30,7 +30,7 @@ addEventListener('message',async e=>{
 if(parent===window&&location.search.includes('galeri')){
   g.style.display='none';document.body.style.cssText='background:#111;color:#eee;font:16px sans-serif;padding:12px';
   const info=document.createElement('p');info.textContent='Gorseller hazirlaniyor (≈40 sn)... Her gorselin altindaki baglantidan indirebilirsin.';document.body.appendChild(info);
-  g.style.cssText='position:fixed;left:0;top:0;width:1080px;height:1920px;opacity:0;pointer-events:none;border:0';g.style.display='block';
+  g.style.cssText='position:fixed;left:0;top:0;width:1080px;height:1920px;z-index:-1;pointer-events:none;border:0';g.style.display='block';
   const base='/buyucu-satranc/';
   const jobs=[{n:'reklam-1-ana-tahta',u:base+'?v=g1',c:'hPlay'},{n:'reklam-2-oyun',u:base+'?v=g2&fen=r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR_w_KQkq_-_4_4',c:'hPlay'},{n:'reklam-3-vezir-hamlesi',u:base+'?v=g3&fen=rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR_w_KQkq_-_1_3',c:'hPlay'}];
   (async()=>{for(const j of jobs){
