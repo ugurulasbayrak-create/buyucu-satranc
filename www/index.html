@@ -122,6 +122,8 @@ button.primary:hover:not(:disabled){background:#efc873; color:var(--gold-ink)}
 .row2{display:grid; grid-template-columns:1fr 1fr; gap:8px}
 .dialog .row2{margin-top:6px}
 #bannerStat{color:var(--text); font-size:14.5px; margin:-6px 0 14px}
+#clock.low{border-color:#ff6a5a; color:#ff9a8a}
+#clock b{font-variant-numeric:tabular-nums}
 #toast{position:absolute; left:50%; bottom:92px; transform:translateX(-50%); z-index:9; background:rgba(20,15,10,.96); border:1px solid var(--gold); color:var(--text); padding:8px 16px; border-radius:999px; font-size:14px; pointer-events:none; opacity:0; transition:opacity .25s}
 #toast.on{opacity:1}
 #shareImg{width:100%; max-height:46vh; object-fit:contain; border-radius:12px; border:1px solid var(--line); margin-bottom:12px; background:#000}
@@ -158,6 +160,7 @@ input.fld:focus{outline:2px solid var(--gold); outline-offset:1px}
   <div id="hud">
     <div class="pill brand">3D Büyücü Satranç</div>
     <div class="pill" id="chip" data-mood="you"><span class="dot"></span><span id="chipText" aria-live="polite">Hazırlanıyor</span><span class="tag" id="sideTag">Beyaz oynuyorsun</span></div>
+    <div class="pill" id="clock" hidden>⏱ <b id="clockT">3:00</b></div>
     <div class="bar">
       <button id="bHome" type="button">☰ Menü</button>
       <button id="bSide" type="button">Siyah Oyna</button>
@@ -2041,7 +2044,9 @@ let fbAuth = null, fbDb = null, fbUser = null, fbOn = false;
 const ROOM_KEY = 'wizard-chess-room';
 const saveRoom = c => { try { c ? localStorage.setItem(ROOM_KEY, c) : localStorage.removeItem(ROOM_KEY); } catch (e) {} };
 const savedRoom = () => { try { return localStorage.getItem(ROOM_KEY) || ''; } catch (e) { return ''; } };
-let hbTimer = 0;
+let hbTimer = 0, clockTimer = 0, lastMySeen = 0, timeoutSent = false;
+const MOVE_LIMIT = 180000;
+const srvNow = () => Date.now() + (online.skew || 0);
 let unsub = null, onlineDoc = null, pumping = false, remoteEndShown = false, resignArm = 0;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -2146,7 +2151,7 @@ async function joinRoom(code) {
     const d = s.data();
     if (d.w === fbUser.uid || d.b === fbUser.uid) return;          // rejoin
     if (d.status !== 'waiting' || (d.w && d.b)) throw new Error('Oda dolu.');
-    tx.update(ref, d.w ? { b: fbUser.uid, bName: myName(), status: 'playing' } : { w: fbUser.uid, wName: myName(), status: 'playing' });
+    tx.update(ref, d.w ? { b: fbUser.uid, bName: myName(), status: 'playing', updatedAt: firebase.firestore.FieldValue.serverTimestamp() } : { w: fbUser.uid, wName: myName(), status: 'playing', updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
   });
 }
 function listen(code) {
@@ -2187,7 +2192,7 @@ function onGameSnap(d) {
     const color = d.w === fbUser.uid ? 'w' : d.b === fbUser.uid ? 'b' : null;
     if (!color) return;
     online.opp = (color === 'w' ? d.bName : d.wName) || 'Rakip';
-    online.color = color; online.active = true; online.oppOff = false; saveRoom(online.code); startHeartbeat();
+    online.color = color; online.active = true; online.oppOff = false; saveRoom(online.code); startHeartbeat(); startClock();
     $('lobby').hidden = true; $('home').hidden = true; $('lWait').hidden = true;
     pendingSide = color; newGame({ online: true });
     if ((d.moves || []).length) {
@@ -2199,8 +2204,12 @@ function onGameSnap(d) {
     toast('Rakip: ' + online.opp);
   }
   if (!online.active) return;
+  const mine = d[online.color === 'w' ? 'wSeen' : 'bSeen'], mineMs = mine && mine.toMillis ? mine.toMillis() : 0;
+  if (mineMs && mineMs !== lastMySeen) { lastMySeen = mineMs; if (Math.abs(mineMs - Date.now()) < 3600000) online.skew = mineMs - Date.now(); }
+  online.turnAt = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : srvNow();
+  online.movesN = (d.moves || []).length;
   const seen = d[online.color === 'w' ? 'bSeen' : 'wSeen'], ms = seen && seen.toMillis ? seen.toMillis() : 0;
-  const off = d.status === 'playing' && ms > 0 && Date.now() - ms > 90000;
+  const off = d.status === 'playing' && ms > 0 && srvNow() - ms > 90000;
   if (off !== online.oppOff) { online.oppOff = off; updateStatus(); if (off) toast('Rakibin bağlantısı koptu, dönmesini bekle'); }
   if (d.status === 'done' && !gameOver && !remoteEndShown) {
     // wait until pending moves are shown, then show the result
@@ -2208,7 +2217,10 @@ function onGameSnap(d) {
       if (gameOver) return;
       remoteEndShown = true;
       const mine = online.color;
-      if (d.reason === 'resign') {
+      if (d.reason === 'timeout') {
+        const won = d.result === mine;
+        remoteEnd(won ? 'win' : 'loss', won ? 'Rakibin süresi doldu. Kazandın!' : 'Süren doldu', won ? 'Rakip hamle süresinde oynamadı.' : 'Hamleni 3 dakikada yapmadın.');
+      } else if (d.reason === 'resign') {
         const won = d.result === mine;
         remoteEnd(won ? 'win' : 'loss', won ? 'Rakip pes etti. Kazandın!' : 'Pes ettin', won ? 'Rakip pes etti.' : 'Bu maçı bıraktın.');
       } else if (d.result === 'draw') remoteEnd('draw', 'Berabere', 'Oyun berabere bitti.');
@@ -2263,6 +2275,31 @@ async function resyncFromServer() {
     toast('Bağlantı sorunu: tahta sunucuyla eşitlendi');
   } catch (e) { toast('Hamle gönderilemedi. İnternetini kontrol et.'); }
 }
+function startClock() {
+  clearInterval(clockTimer); timeoutSent = false; $('clock').hidden = false;
+  clockTimer = setInterval(() => {
+    if (!online.active || gameOver) { $('clock').hidden = true; clearInterval(clockTimer); return; }
+    const left = Math.max(0, (online.turnAt || srvNow()) + MOVE_LIMIT - srvNow());
+    const s = Math.ceil(left / 1000);
+    $('clockT').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    $('clock').classList.toggle('low', s <= 30);
+    $('clock').title = game.turn() === playerColor ? 'Senin sıran' : 'Rakibin sırası';
+    if (left <= 0 && !timeoutSent && online.movesN === game.history().length && !animating) claimTimeout();
+  }, 1000);
+}
+async function claimTimeout() {
+  timeoutSent = true;
+  const loser = game.turn(), result = loser === 'w' ? 'b' : 'w', ref = gamesRef(online.code);
+  try {
+    await fbDb.runTransaction(async tx => {
+      const s = await tx.get(ref), d = s.data();
+      if (!d || d.status !== 'playing' || (d.moves || []).length !== game.history().length) return;
+      const upd = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : 0;
+      if (upd && srvNow() - upd < MOVE_LIMIT - 2000) return;     // someone moved meanwhile
+      tx.update(ref, { status: 'done', result, reason: 'timeout' });
+    });
+  } catch (e) { timeoutSent = false; }
+}
 function startHeartbeat() {
   clearInterval(hbTimer);
   const beat = () => { if (!online.active || document.hidden || !online.code) return; gamesRef(online.code).update({ [online.color === 'w' ? 'wSeen' : 'bSeen']: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {}); };
@@ -2270,7 +2307,7 @@ function startHeartbeat() {
 }
 function remoteEnd(res, title, text) {
   if (gameOver) return;
-  saveRoom(''); clearInterval(hbTimer);
+  saveRoom(''); clearInterval(hbTimer); clearInterval(clockTimer); $('clock').hidden = true;
   gameOver = true; clearSelection(); setBusy(false);
   $('bannerTitle').textContent = title; $('bannerText').textContent = text; $('banner').hidden = false;
   setStatus(title, 'end');
@@ -2281,7 +2318,7 @@ function remoteEnd(res, title, text) {
 }
 async function onlineFinish(res) {
   if (!online.code) return;
-  saveRoom(''); clearInterval(hbTimer);
+  saveRoom(''); clearInterval(hbTimer); clearInterval(clockTimer); $('clock').hidden = true;
   const result = res === 'draw' ? 'draw' : res === 'win' ? online.color : (online.color === 'w' ? 'b' : 'w');
   try { await gamesRef(online.code).update({ status: 'done', result, reason: res === 'draw' ? 'draw' : 'mate' }); } catch (e) {}
 }
@@ -2291,7 +2328,7 @@ function onlineLeave(abandon) {
     gamesRef(online.code).update({ status: 'done', result, reason: 'resign' }).catch(() => {});
   }
   if (unsub) { unsub(); unsub = null; }
-  clearInterval(hbTimer); if (abandon || gameOver) saveRoom('');
+  clearInterval(hbTimer); clearInterval(clockTimer); $('clock').hidden = true; if (abandon || gameOver) saveRoom('');
   online.active = false; online.oppOff = false; online.code = ''; onlineDoc = null; $('bResign').hidden = true;
 }
 $('bResign').onclick = () => {
