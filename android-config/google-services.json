@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "415695876902",
+    "project_id": "buyucu-satranc",
+    "storage_bucket": "buyucu-satranc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:415695876902:android:84b0a8ddc64d3a2f1907e7",
+        "android_client_info": {
+          "package_name": "com.ulas.buyucusatranc"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "415695876902-gsl1loipm5ijm4uce058l6paka2c1jdu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ulas.buyucusatranc",
+            "certificate_hash": "ddedf3f3e840a6e59f0a5828ddcdd4633d0dd9f9"
+          }
+        },
+        {
+          "client_id": "415695876902-4fae4savaj5ph377iis2o015hvf71voq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvbVfcW6uVb_CUaNrQV8N3Dlu4CGgOcGA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "415695876902-4fae4savaj5ph377iis2o015hvf71voq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
