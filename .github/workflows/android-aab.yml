@@ -21,6 +21,10 @@ jobs:
           npx cap add android
           npm run icons
           npx cap sync android
+      - name: minSdk 24 (Play otomatik koruma)
+        run: |
+          sed -i -E 's/minSdkVersion = [0-9]+/minSdkVersion = 24/' android/variables.gradle
+          grep minSdkVersion android/variables.gradle
       - name: google-services.json
         run: |
           test -f android-config/google-services.json || { echo "android-config/google-services.json yok"; exit 1; }
