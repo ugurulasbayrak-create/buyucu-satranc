@@ -6,6 +6,13 @@ const saveRoom = c => { try { c ? localStorage.setItem(ROOM_KEY, c) : localStora
 const savedRoom = () => { try { return localStorage.getItem(ROOM_KEY) || ''; } catch (e) { return ''; } };
 let hbTimer = 0, clockTimer = 0, lastMySeen = 0, timeoutSent = false;
 const MOVE_LIMIT = 180000;
+const API = () => String(window.SERVER_URL || '').replace(/\/$/, '');
+async function api(path, body) {
+  const tok = await fbUser.getIdToken();
+  const r = await fetch(API() + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) });
+  let j = {}; try { j = await r.json(); } catch (e) {}
+  return { status: r.status, ...j };
+}
 const srvNow = () => Date.now() + (online.skew || 0);
 let unsub = null, onlineDoc = null, pumping = false, remoteEndShown = false, resignArm = 0;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -210,6 +217,18 @@ async function pumpMoves(remote) {
 }
 async function onlineSend(mv, tries) {
   tries = tries || 0;
+  if (API()) {
+    try {
+      const r = await api('/move', { code: online.code, from: mv.from, to: mv.to, promotion: mv.promotion || '' });
+      if (r.status === 200) return;
+      if (r.status === 409 || r.status === 404) return;            // maç bitti, anlık görüntü sonucu gösterir
+      resyncFromServer(); toast(r.error === 'illegal' ? 'Sunucu bu hamleyi reddetti' : 'Hamle kabul edilmedi, tahta eşitlendi');
+    } catch (e) {
+      if (tries < 8 && online.active && !gameOver) { if (tries === 0) toast('Bağlantı sorunu, tekrar deneniyor…'); await sleep(Math.min(8000, 1500 * (tries + 1))); onlineSend(mv, tries + 1); }
+      else if (online.active) resyncFromServer();
+    }
+    return;
+  }
   const ref = gamesRef(online.code), expected = game.history().length - 1;
   try {
     await fbDb.runTransaction(async tx => {
@@ -244,7 +263,7 @@ function startClock() {
     $('clockT').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
     $('clock').classList.toggle('low', s <= 30);
     $('clock').title = game.turn() === playerColor ? 'Senin sıran' : 'Rakibin sırası';
-    if (left <= 0 && !timeoutSent && online.movesN === game.history().length && !animating) claimTimeout();
+    if (!API() && left <= 0 && !timeoutSent && online.movesN === game.history().length && !animating) claimTimeout();
   }, 1000);
 }
 async function claimTimeout() {
@@ -279,13 +298,14 @@ function remoteEnd(res, title, text) {
 async function onlineFinish(res) {
   if (!online.code) return;
   saveRoom(''); clearInterval(hbTimer); clearInterval(clockTimer); $('clock').hidden = true;
+  if (API()) return;                                              // sonucu sunucu yazar
   const result = res === 'draw' ? 'draw' : res === 'win' ? online.color : (online.color === 'w' ? 'b' : 'w');
   try { await gamesRef(online.code).update({ status: 'done', result, reason: res === 'draw' ? 'draw' : 'mate' }); } catch (e) {}
 }
 function onlineLeave(abandon) {
   if (online.active && abandon && !gameOver && online.code) {
     const result = online.color === 'w' ? 'b' : 'w';
-    gamesRef(online.code).update({ status: 'done', result, reason: 'resign' }).catch(() => {});
+    if (API()) api('/resign', { code: online.code }).catch(() => {}); else gamesRef(online.code).update({ status: 'done', result, reason: 'resign' }).catch(() => {});
   }
   if (unsub) { unsub(); unsub = null; }
   clearInterval(hbTimer); clearInterval(clockTimer); $('clock').hidden = true; if (abandon || gameOver) saveRoom('');
@@ -296,7 +316,7 @@ $('bResign').onclick = () => {
   if (Date.now() > resignArm) { resignArm = Date.now() + 3000; $('bResign').textContent = 'Emin misin? Tekrar dokun'; setTimeout(() => { $('bResign').textContent = 'Pes et'; }, 3000); return; }
   resignArm = 0; $('bResign').textContent = 'Pes et';
   const result = online.color === 'w' ? 'b' : 'w';
-  gamesRef(online.code).update({ status: 'done', result, reason: 'resign' }).catch(() => {});
+  if (API()) api('/resign', { code: online.code }).catch(() => {}); else gamesRef(online.code).update({ status: 'done', result, reason: 'resign' }).catch(() => {});
   remoteEnd('loss', 'Pes ettin', 'Bu maçı bıraktın.');
 };
 let delArm = 0;

@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /games/{code} {
+      allow read: if request.auth != null;
+      // Oda kurma
+      allow create: if request.auth != null
+        && request.resource.data.moves.size() == 0
+        && request.resource.data.status == 'waiting'
+        && ((request.resource.data.w == request.auth.uid && request.resource.data.b == null)
+          || (request.resource.data.b == request.auth.uid && request.resource.data.w == null));
+      // Odaya katılma (boş koltuğu doldurma) ve "buradayım" işareti. Hamleler ve sonuç SADECE sunucudan yazılır.
+      allow update: if request.auth != null && (
+        (resource.data.status == 'waiting' && request.resource.data.status == 'playing'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['w', 'wName', 'b', 'bName', 'status', 'updatedAt'])
+          && request.resource.data.moves.size() == 0
+          && ((resource.data.w == null && request.resource.data.w == request.auth.uid && request.resource.data.b == resource.data.b)
+            || (resource.data.b == null && request.resource.data.b == request.auth.uid && request.resource.data.w == resource.data.w)))
+        || ((request.auth.uid == resource.data.w || request.auth.uid == resource.data.b)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['wSeen', 'bSeen']))
+      );
+      allow delete: if request.auth != null && resource.data.status == 'waiting'
+        && (resource.data.w == request.auth.uid || resource.data.b == request.auth.uid);
+    }
+  }
+}
