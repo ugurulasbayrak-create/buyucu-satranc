@@ -1809,7 +1809,9 @@ function newGame(opts) {
   daily = !!(opts && opts.daily);
   game = new Chess(); playerColor = pendingSide; gameOver = false; baseLen = 0;
   if (daily) { playerColor = pendingSide = 'w'; dailyNo = todayNo(); seedDaily(game, dailyNo); baseLen = game.history().length; const h = game.history({ verbose: true }); lastMove = { from: h[h.length - 1].from, to: h[h.length - 1].to }; toast('Günlük Meydan Okuma #' + dailyNo); }
-  if (!daily) lastMove = null; checkSq = null; clearSelection(); clearHint();
+  if (!daily) lastMove = null;
+  if (!daily && !online.active && !newGame.fenDone) { newGame.fenDone = true; try { const q = new URLSearchParams(location.search).get('fen'); if (q) { game.load(q.replace(/_/g, ' ')); pendingSide = playerColor = game.turn(); } } catch (e) {} }
+  checkSq = game.in_check() ? findKing(game.turn()) : null; clearSelection(); clearHint();
   $('banner').hidden = true; $('share').hidden = true; $('promo').hidden = true;
   placeAll(true); paintSquares(); introFly(); refreshUI(); setBusy(false);
   if (online.active) { setBusy(game.turn() !== playerColor); updateStatus(); } else if (game.turn() !== playerColor) aiTurn(); else updateStatus();
