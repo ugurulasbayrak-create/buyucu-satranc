@@ -10,8 +10,8 @@
 /* Düzen: tam ekran 3D sahne; üstte yarı saydam hap şeklinde kontrol çubuğu, sağda açılır panel, altta kontrol ipucu.
    Palet: sıcak kumtaşı salon, siyah tahta, altın detay, ateş turuncusu. Tek görünüm, koyu. */
 :root{
-  --night:#0e0a07; --ink:rgba(16,12,9,.80); --panel:#15100c; --line:rgba(224,182,79,.34);
-  --text:#f3ead8; --muted:#b9a98c; --gold:#e0b64f; --gold-ink:#241a05;
+  --night:#0e0a07; --ink:rgba(16,12,9,.80); --panel:#15100c; --line:rgba(214,189,126,.34);
+  --text:#f3ead8; --muted:#b9a98c; --gold:#d6bd7e; --gold-ink:#241a05;
   --ember:#ff8a3d; --ivory:#efe3c7;
   --font-display:'Almendra', Georgia, 'Times New Roman', serif;
   --font-body:'Spectral', Georgia, 'Times New Roman', serif;
@@ -37,7 +37,7 @@ body{
 }
 .brand{font:700 17px var(--font-display); letter-spacing:.16em; color:var(--gold); text-transform:uppercase}
 #chipText{overflow:hidden; text-overflow:ellipsis; max-width:46vw}
-.tag{font-size:13px; color:var(--gold); border:1px solid var(--line); border-radius:999px; padding:1px 10px; background:rgba(224,182,79,.1)}
+.tag{font-size:13px; color:var(--gold); border:1px solid var(--line); border-radius:999px; padding:1px 10px; background:rgba(214,189,126,.1)}
 .dot{width:10px; height:10px; border-radius:50%; background:var(--ivory); box-shadow:0 0 9px var(--ivory); flex:none}
 #chip[data-mood="foe"] .dot{background:var(--ember); box-shadow:0 0 10px var(--ember); animation:pulse 1s ease-in-out infinite}
 #chip[data-mood="check"] .dot{background:#ff4a4a; box-shadow:0 0 12px #ff4a4a; animation:pulse .6s ease-in-out infinite}
@@ -55,7 +55,7 @@ button:disabled{opacity:.42; cursor:default}
 button:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
 button[aria-pressed="true"]{border-color:var(--gold); color:var(--gold); background:rgba(40,30,14,.88)}
 button.primary{background:var(--gold); color:var(--gold-ink); border-color:var(--gold)}
-button.primary:hover:not(:disabled){background:#efc873; color:var(--gold-ink)}
+button.primary:hover:not(:disabled){background:#e6d3a4; color:var(--gold-ink)}
 #foot{position:absolute; left:10px; bottom:10px; z-index:3; font-size:12.5px; color:var(--muted); max-width:calc(100% - 70px); white-space:normal; border-radius:14px; padding:6px 14px}
 #foot b{color:var(--gold); font-weight:600}
 #capBox{position:absolute; right:12px; bottom:12px; z-index:3; font-size:13px; color:var(--muted)}
@@ -81,7 +81,7 @@ button.primary:hover:not(:disabled){background:#efc873; color:var(--gold-ink)}
 .seg button{padding:6px 6px; border-radius:10px}
 .moves{display:flex; flex-direction:column; min-height:110px; flex:1 1 140px}
 #moveList{margin:6px 0 0; padding:0; list-style:none; overflow-y:auto; flex:1 1 auto; min-height:0; font-variant-numeric:tabular-nums}
-#moveList li{display:grid; grid-template-columns:2.4em 1fr 1fr; padding:2px 0; border-bottom:1px solid rgba(224,182,79,.14)}
+#moveList li{display:grid; grid-template-columns:2.4em 1fr 1fr; padding:2px 0; border-bottom:1px solid rgba(214,189,126,.14)}
 #moveList .n{color:var(--muted)}
 #moveList .last{color:var(--gold); font-weight:600}
 .empty{color:var(--muted); font-size:13.5px}
@@ -108,8 +108,8 @@ button.primary:hover:not(:disabled){background:#efc873; color:var(--gold-ink)}
 /* --- ana menü, paylaşım, bildirim, mobil dock --- */
 #home{background:radial-gradient(ellipse at 50% 35%, rgba(40,26,10,.55), rgba(8,5,3,.82)); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:8}
 .hero{width:min(420px,100%); text-align:center; display:grid; gap:14px}
-.hero .crest{font-size:34px; color:var(--gold); text-shadow:0 0 22px rgba(224,182,79,.7); line-height:1}
-.hero h1{font:700 clamp(34px,9vw,52px)/1 var(--font-display); letter-spacing:.1em; margin:0; color:var(--gold); text-transform:uppercase; text-shadow:0 2px 18px rgba(224,150,40,.45)}
+.hero .crest{font-size:34px; color:var(--gold); text-shadow:0 0 22px rgba(214,189,126,.7); line-height:1}
+.hero h1{font:700 clamp(34px,9vw,52px)/1 var(--font-display); letter-spacing:.1em; margin:0; color:var(--gold); text-transform:uppercase; text-shadow:0 2px 18px rgba(214,165,95,.45)}
 .hero .sub{margin:0; color:var(--muted); font-size:15px}
 .hero .big{width:100%; padding:14px 18px; font-size:17px; border-radius:16px; min-height:52px}
 .daily{display:flex; align-items:center; gap:12px; text-align:left; width:100%; padding:12px 16px; border-radius:16px; min-height:60px; border-color:var(--gold); background:linear-gradient(135deg, rgba(60,40,12,.92), rgba(22,15,8,.92))}
@@ -495,8 +495,8 @@ const camTargetT = new THREE.Vector3(0, 0.5, 0.5);
 })();
 
 /* ---------- lights ---------- */
-scene.add(new THREE.HemisphereLight(C('#e6e9ee'), C('#4a443c'), 0.75));
-const sun = new THREE.DirectionalLight(C('#fff1dc'), 1.1);
+scene.add(new THREE.HemisphereLight(C('#e8ebf0'), C('#454a52'), 0.75));
+const sun = new THREE.DirectionalLight(C('#f7f2ea'), 1.1);
 sun.position.set(-7, 14, 10);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
@@ -580,7 +580,7 @@ function slabTexture() {
     x.stroke();
   }
   // gold lines
-  x.strokeStyle = '#d9a93c'; x.shadowColor = 'rgba(217,169,60,.55)'; x.shadowBlur = 6;
+  x.strokeStyle = '#c9b078'; x.shadowColor = 'rgba(201,176,120,.4)'; x.shadowBlur = 4;
   [[4.78, 3], [4.92, 1.2], [6.2, 2.6], [6.05, 1]].forEach(([h, w]) => { x.lineWidth = w; x.strokeRect(cx - h * u, cx - h * u, h * 2 * u, h * 2 * u); });
   // runes between the lines
   x.lineWidth = 2.4; x.shadowBlur = 4;
@@ -608,7 +608,7 @@ function slabTexture() {
 }
 
 /* ---------- slab, board, frame ---------- */
-const goldMat = new THREE.MeshStandardMaterial({ color: C('#d9a93c'), roughness: 0.28, metalness: 1.0, envMapIntensity: 1.1 });
+const goldMat = new THREE.MeshStandardMaterial({ color: C('#bfa56b'), roughness: 0.3, metalness: 1.0, envMapIntensity: 1.0 });
 const sqMesh = {};
 (function () {
   const side = new THREE.MeshStandardMaterial({ color: C('#0b0b0e'), roughness: 0.4, metalness: 0.5 });
@@ -694,7 +694,7 @@ Promise.race([(document.fonts && document.fonts.ready) || Promise.resolve(), sle
   (function () {
     const c = document.createElement('canvas'); c.width = c.height = 512;
     const x = c.getContext('2d'); x.translate(256, 256);
-    const cols = ['#6fa0d8', '#e0b64f', '#c85a4a', '#8fb7e6'];
+    const cols = ['#6fa0d8', '#d6bd7e', '#c85a4a', '#8fb7e6'];
     x.fillStyle = '#1b2a3c'; x.beginPath(); x.arc(0, 0, 250, 0, 7); x.fill();
     for (let i = 0; i < 16; i++) {
       x.save(); x.rotate((i / 16) * Math.PI * 2);
@@ -754,7 +754,7 @@ Promise.race([(document.fonts && document.fonts.ready) || Promise.resolve(), sle
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, color: C(col).multiplyScalar(1.1), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
       s.scale.set(w, h, 1); s.position.y = y0 + h * 0.2; g.add(s); flames.push({ s, w, h, y0, ph: i * 1.7 + seed });
     });
-    const light = new THREE.PointLight(C('#ffa860'), 0.95, 22, 1.9); light.position.set(bx, y + 1.9, bz); scene.add(light);
+    const light = new THREE.PointLight(C('#ffb27a'), 0.78, 22, 1.9); light.position.set(bx, y + 1.9, bz); scene.add(light);
     const N = 36, pos = new Float32Array(N * 3), st = [];
     for (let i = 0; i < N; i++) { st.push({ a: Math.random() * 6.28, r: Math.random() * 0.6, y: Math.random() * 4, v: 0.5 + Math.random() * 0.9 }); }
     const eg = new THREE.BufferGeometry(); eg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -837,7 +837,7 @@ Promise.race([(document.fonts && document.fonts.ready) || Promise.resolve(), sle
   const MOTES = 150, mp = new Float32Array(MOTES * 3), ms = [];
   for (let i = 0; i < MOTES; i++) { mp[i * 3] = (Math.random() - 0.5) * 26; mp[i * 3 + 1] = Math.random() * 9 - 1; mp[i * 3 + 2] = (Math.random() - 0.5) * 26; ms.push(Math.random() * 6.28); }
   const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.BufferAttribute(mp, 3));
-  scene.add(new THREE.Points(mg, new THREE.PointsMaterial({ map: spriteTex, color: C('#ffd9a0'), size: 0.09, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })));
+  scene.add(new THREE.Points(mg, new THREE.PointsMaterial({ map: spriteTex, color: C('#efe4d0'), size: 0.09, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })));
   animators.push((t, dt) => {
     const p = mg.attributes.position;
     for (let i = 0; i < MOTES; i++) {
@@ -900,7 +900,7 @@ function shockwave(x, z, hex) {
 
 const debris = [];
 const debrisGeo = new THREE.DodecahedronGeometry(0.1, 0);
-const debrisGold = new THREE.MeshStandardMaterial({ color: C('#d9a93c'), roughness: 0.3, metalness: 0.9 });
+const debrisGold = new THREE.MeshStandardMaterial({ color: C('#c4b07a'), roughness: 0.3, metalness: 0.9 });
 function rubble(x, z, color, ux, uz) {
   const mat = new THREE.MeshStandardMaterial({ color: C(color === 'w' ? '#f2ead8' : '#1a1a20'), roughness: 0.6, metalness: color === 'w' ? 0.05 : 0.4 });
   const n = 22;
@@ -938,10 +938,10 @@ const GradeShader = {
     '  vec2 d = vUv - 0.5; float r2 = dot(d, d);',
     '  vec2 off = d * aberr * (0.4 + r2 * 2.0);',
     '  vec3 col = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);',
-    '  col *= exposure; col += vec3(1.0, 0.92, 0.75) * flash;',
+    '  col *= exposure; col += vec3(1.0, 0.96, 0.88) * flash;',
     '  col = aces(col);',
     '  col = mix(col, col * col * (3.0 - 2.0 * col), 0.28);',
-    '  col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 1.22);',
+    '  col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 1.1);',
     '  col = mix(col, col * vec3(1.15, 0.55, 0.5), red * smoothstep(0.1, 0.6, r2) );',
     '  col *= 1.0 - vig * smoothstep(0.12, 0.62, r2);',
     '  col += (fract(sin(dot(vUv * 800.0 + time, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.018;',
@@ -962,7 +962,7 @@ function buildComposer() {
     composer = new THREE.EffectComposer(renderer, rt);
     composer.setPixelRatio && composer.setPixelRatio(pr);
     composer.addPass(new THREE.RenderPass(scene, camera));
-    bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(w * (quality ? 0.5 : 1), h * (quality ? 0.5 : 1)), 0.32, 0.55, 1.15);
+    bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(w * (quality ? 0.5 : 1), h * (quality ? 0.5 : 1)), 0.24, 0.55, 1.15);
     composer.addPass(bloomPass);
     gradePass = new THREE.ShaderPass(GradeShader);
     gradePass.renderToScreen = true;
@@ -1033,19 +1033,19 @@ function bakeEnvironment() {
 const leafTex = (function () {
   const cv = document.createElement('canvas'); cv.width = cv.height = 256;
   const x = cv.getContext('2d'), rnd = rngOf(77);
-  x.fillStyle = '#d6a737'; x.fillRect(0, 0, 256, 256);
-  const tones = ['#f3cf66', '#c9962a', '#e4b744', '#b8841f', '#f7da7d', '#d9ac3b'];
+  x.fillStyle = '#c8ad6e'; x.fillRect(0, 0, 256, 256);
+  const tones = ['#e8d9a6', '#b79a58', '#d6c186', '#a38b50', '#f0e3ba', '#c9b378'];
   for (let i = 0; i < 900; i++) {
     x.globalAlpha = 0.12 + rnd() * 0.25; x.fillStyle = tones[Math.floor(rnd() * tones.length)];
     const w = 14 + rnd() * 40, h = 8 + rnd() * 26;
     x.save(); x.translate(rnd() * 256, rnd() * 256); x.rotate(rnd() * 3.14); x.fillRect(-w / 2, -h / 2, w, h); x.restore();
   }
-  x.globalAlpha = 0.18; x.strokeStyle = '#7a5410'; x.lineWidth = 0.7;
+  x.globalAlpha = 0.18; x.strokeStyle = '#6b5a38'; x.lineWidth = 0.7;
   for (let i = 0; i < 120; i++) { x.beginPath(); const px = rnd() * 256, py = rnd() * 256; x.moveTo(px, py); x.lineTo(px + (rnd() - 0.5) * 30, py + (rnd() - 0.5) * 30); x.stroke(); }
   const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
   return t;
 })();
-const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, bumpMap: leafTex, bumpScale: 0.08, color: 0xffffff, roughness: 0.2, metalness: 1.0, envMapIntensity: 1.5 });
+const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, bumpMap: leafTex, bumpScale: 0.08, color: 0xffffff, roughness: 0.24, metalness: 1.0, envMapIntensity: 1.15 });
 
 const SIDE = {
   w: {
@@ -1369,8 +1369,8 @@ const mk = {
   dot: new THREE.MeshBasicMaterial({ color: C('#7fd6ff'), transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }),
   cap: new THREE.MeshBasicMaterial({ color: C('#ff4455'), transparent: true, opacity: 1, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
   capGlow: new THREE.MeshBasicMaterial({ color: C('#ff2a3a'), transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
-  sel: new THREE.MeshBasicMaterial({ color: C('#ffe98a'), transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
-  selRing: new THREE.MeshBasicMaterial({ color: C('#fff4b8'), transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
+  sel: new THREE.MeshBasicMaterial({ color: C('#ffd84a'), transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
+  selRing: new THREE.MeshBasicMaterial({ color: C('#f2a900'), transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
   hint: new THREE.MeshBasicMaterial({ color: C('#bcd8d2'), transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false, side: THREE.DoubleSide })
 };
 const mkGeo = {
@@ -1405,7 +1405,7 @@ function select(sq) {
 }
 function paintSquares() {
   Object.values(sqMesh).forEach(m => m.material.emissive.setHex(0x000000));
-  if (lastMove) [lastMove.from, lastMove.to].forEach(s => sqMesh[s].material.emissive.copy(C('#4d3d12')));
+  if (lastMove) [lastMove.from, lastMove.to].forEach(s => sqMesh[s].material.emissive.copy(C('#3a4660')));
 }
 function findKing(color) {
   const b = boardOf(game);
@@ -1436,9 +1436,9 @@ function placeAll(intro) {
 function dissolve(g, ux, uz) {
   const col = SIDE[g.userData.color].hex, p = g.position;
   burst(p.x, 0.5, p.z, col, 64, 3.2, 0.26);
-  burst(p.x, 0.4, p.z, '#ffd98a', 40, 2.2, 0.18);
+  burst(p.x, 0.4, p.z, '#ffeed2', 40, 2.2, 0.18);
   shockwave(p.x, p.z, col);
-  setTimeout(() => shockwave(p.x, p.z, '#ffd98a'), 140);
+  setTimeout(() => shockwave(p.x, p.z, '#ffeed2'), 140);
   sfx.capture(); rubble(p.x, p.z, g.userData.color, ux, uz);
   const r0 = g.rotation.y;
   return tween(300, (e, k) => {
@@ -1447,21 +1447,74 @@ function dissolve(g, ux, uz) {
   }, k => k).then(() => scene.remove(g));
 }
 const PIECE_H = { p: 0.85, n: 1.15, b: 1.3, r: 1.1, q: 1.55, k: 1.7 };
-function makeSword(hex) {
+const SWORD_SPEC = { p: { L: 0.85, w: 0.07, g: 0.2 }, n: { L: 1.05, w: 0.08, g: 0.26 }, b: { L: 1.15, w: 0.075, g: 0.24 }, r: { L: 1.0, w: 0.13, g: 0.34 }, q: { L: 1.3, w: 0.085, g: 0.3 }, k: { L: 1.45, w: 0.12, g: 0.38 } };
+let _swGlowTex = null;
+function swGlowTex() {
+  if (_swGlowTex) return _swGlowTex;
+  const cv = document.createElement('canvas'); cv.width = 32; cv.height = 64;
+  const x = cv.getContext('2d'), gr = x.createLinearGradient(0, 0, 32, 0);
+  gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, 32, 64);
+  _swGlowTex = new THREE.CanvasTexture(cv);
+  return _swGlowTex;
+}
+// modern büyülü kılıç: parlatılmış çelik bıçak, açılı siper, enerji çizgileri, taşın rengiyle parlayan çekirdek
+function makeSword(hex, type) {
+  const sp = SWORD_SPEC[type] || SWORD_SPEC.p, L = sp.L, w = sp.w, gw = sp.g;
   const g = new THREE.Group();
-  const steel = new THREE.MeshStandardMaterial({ color: C('#eef1f8'), metalness: 0.95, roughness: 0.16, emissive: C(hex), emissiveIntensity: 0.55 });
-  const gold = new THREE.MeshStandardMaterial({ color: C('#d9a93c'), metalness: 0.9, roughness: 0.28 });
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.3, 0.025), steel); blade.position.y = 0.72;
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.22, 4), steel); tip.position.y = 1.48; tip.scale.z = 0.28;
-  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.1), gold); guard.position.y = 0.05;
-  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.32, 10), new THREE.MeshStandardMaterial({ color: C('#2a1c12'), roughness: 0.6 })); grip.position.y = -0.14;
-  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), gold); pommel.position.y = -0.33;
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1.8), new THREE.MeshBasicMaterial({ color: C(hex), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-  glow.position.y = 0.8;
-  [blade, tip, guard, grip, pommel].forEach(m => { m.castShadow = true; g.add(m); });
-  g.add(glow);
+  const acc = C(hex).clone().lerp(new THREE.Color(1, 1, 1), 0.2).multiplyScalar(2.1);
+  const hot = C(hex).clone().lerp(new THREE.Color(1, 1, 1), 0.75).multiplyScalar(2.6);
+  const steel = new THREE.MeshStandardMaterial({ color: C('#e6ebf3'), metalness: 1, roughness: 0.1, envMapIntensity: 1.6 });
+  const dark = new THREE.MeshStandardMaterial({ color: C('#1a1d25'), metalness: 0.85, roughness: 0.3, envMapIntensity: 1.2 });
+  const rubber = new THREE.MeshStandardMaterial({ color: C('#101216'), metalness: 0.2, roughness: 0.7 });
+  const accM = new THREE.MeshBasicMaterial({ color: acc, toneMapped: false });
+  const hotM = new THREE.MeshBasicMaterial({ color: hot, toneMapped: false });
+  // bıçak: eğik uçlu, bevelli levha (geniş yüz yan profilde görünür, kenar vuruş yönüne bakar)
+  const sh = new THREE.Shape();
+  sh.moveTo(-w, 0.02); sh.lineTo(-w, L * 0.82); sh.lineTo(w * 0.8, L); sh.lineTo(w, L * 0.96); sh.lineTo(w, 0.02);
+  const bg = new THREE.ExtrudeGeometry(sh, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 1, steps: 1 });
+  bg.translate(0, 0, -0.007); bg.rotateY(Math.PI / 2);
+  const blade = new THREE.Mesh(bg, steel);
+  const spine = new THREE.Mesh(new THREE.BoxGeometry(0.046, L * 0.74, 0.022), dark); spine.position.set(0, L * 0.4 + 0.03, -(w - 0.004));
+  const fuller = new THREE.Mesh(new THREE.BoxGeometry(0.038, L * 0.62, 0.012), accM); fuller.position.set(0, L * 0.38 + 0.07, -w * 0.3);
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.036, L * 0.8, 0.007), hotM); edge.position.set(0, L * 0.41 + 0.02, w + 0.006);
+  // siper: açılı kanatlı koyu metal + iki yanda enerji kristali
+  const gs = new THREE.Shape();
+  gs.moveTo(-gw, -0.04); gs.lineTo(-gw * 0.55, 0.055); gs.lineTo(-0.05, 0.075); gs.lineTo(0.05, 0.075); gs.lineTo(gw * 0.55, 0.055); gs.lineTo(gw, -0.04);
+  gs.lineTo(gw * 0.72, -0.07); gs.lineTo(0.06, -0.025); gs.lineTo(-0.06, -0.025); gs.lineTo(-gw * 0.72, -0.07);
+  const gg = new THREE.ExtrudeGeometry(gs, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.008, bevelSegments: 1, steps: 1 });
+  gg.translate(0, 0, -0.025); gg.rotateY(Math.PI / 2);
+  const guard = new THREE.Mesh(gg, dark);
+  [-1, 1].forEach(sd => { const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.034), accM); gem.position.set(sd * 0.05, 0.02, 0); gem.scale.set(0.7, 1.2, 1); g.add(gem); });
+  // kabza: kauçuk sargı, halkalar, parlayan halka ve kristal alt uç
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 12), rubber); grip.position.y = -0.17;
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.008, 6, 22), accM); halo.rotation.x = Math.PI / 2; halo.position.y = -0.045;
+  [-0.1, -0.18, -0.26].forEach(y => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.006, 6, 14), dark); r.rotation.x = Math.PI / 2; r.position.y = y; g.add(r); });
+  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 12), dark); pommel.position.y = -0.37;
+  const pgem = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), accM); pgem.position.y = -0.43;
+  const gl = new THREE.Mesh(new THREE.PlaneGeometry(w * 7, L * 1.15), new THREE.MeshBasicMaterial({ map: swGlowTex(), color: acc, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  gl.geometry.rotateY(Math.PI / 2); gl.position.y = L * 0.55;
+  [blade, guard, grip, pommel].forEach(m => { m.castShadow = true; });
+  [blade, spine, fuller, edge, guard, grip, halo, pommel, pgem, gl].forEach(m => g.add(m));
   return g;
 }
+// savurma izi: kılıç yayını izleyen, uca doğru parlayan ışık şeridi
+function makeTrail(hex, L) {
+  const seg = 36, a0 = Math.PI / 2 - 0.9, span = 3.1;
+  const geo = new THREE.RingGeometry(L * 0.42, L * 1.04, seg, 1, a0, span);
+  geo.rotateY(Math.PI / 2);
+  const col = new Float32Array((seg + 1) * 2 * 3), base = C(hex).clone().lerp(new THREE.Color(1, 1, 1), 0.4).multiplyScalar(1.9);
+  for (let j = 0; j < 2; j++) for (let i = 0; i <= seg; i++) {
+    const t = Math.pow(i / seg, 2.4) * (j ? 1 : 0.1), o = (j * (seg + 1) + i) * 3;
+    col[o] = base.r * t; col[o + 1] = base.g * t; col[o + 2] = base.b * t;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setDrawRange(0, 0);
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  m.userData.seg = seg; m.renderOrder = 4; m.frustumCulled = false;
+  return m;
+}
+function trailTo(trail, ph) { trail.geometry.setDrawRange(0, Math.max(0, Math.min(trail.userData.seg, Math.floor(((ph + 0.9) / 3.1) * trail.userData.seg))) * 6); }
 function disposeTree(o) { o.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }); }
 async function animateMove(mv) {
   animating = true;
@@ -1489,7 +1542,7 @@ async function animateMove(mv) {
   }
   const dur = clamp(380 + Math.hypot(to.x - from.x, to.z - from.z) * 95, 450, 1000) + (capSq ? 260 : 0);
   follow.goal = capGrp ? 0 : 1;
-  if (capGrp) diveCam(capSq, dur + 2500, { x: (dest.x + capGrp.position.x) / 2, z: (dest.z + capGrp.position.z) / 2, ux, uz });
+  if (capGrp) diveCam(capSq, dur + 2500, { x: (dest.x + capGrp.position.x) / 2, z: (dest.z + capGrp.position.z) / 2, ux, uz, skip: [grp, capGrp] });
   const jobs = [tween(dur, (e, k) => {
     follow.x = grp.position.x; follow.z = grp.position.z;
     grp.position.x = lerp(from.x, dest.x, e); grp.position.z = lerp(from.z, dest.z, e); grp.position.y = Math.sin(Math.PI * k) * h;
@@ -1500,8 +1553,9 @@ async function animateMove(mv) {
   await Promise.all(jobs);
   follow.goal = 0;
   if (capGrp) {
-    const tp = capGrp.position, hex = SIDE[mv.color].hex, bh = PIECE_H[mv.piece] || 1.0, S = 0.7 + bh * 0.3;
-    const pivot = new THREE.Group(), sword = makeSword(hex); pivot.add(sword); pivot.rotation.y = Math.atan2(ux, uz); scene.add(pivot);
+    const tp = capGrp.position, hex = SIDE[mv.color].hex, bh = PIECE_H[mv.piece] || 1.0, S = 0.9 + bh * 0.1;
+    const pivot = new THREE.Group(), sword = makeSword(hex, mv.piece), trail = makeTrail(hex, (SWORD_SPEC[mv.piece] || SWORD_SPEC.p).L);
+    pivot.add(sword); pivot.add(trail); trail.scale.setScalar(S); pivot.rotation.y = Math.atan2(ux, uz); scene.add(pivot);
     const sx = dest.x, sz = dest.z;
     const place = off => { pivot.position.set(grp.position.x + ux * (0.3 + off), bh * 0.85 + grp.position.y, grp.position.z + uz * (0.3 + off)); };
     sword.scale.setScalar(0.01); sword.rotation.x = -0.2;
@@ -1511,15 +1565,16 @@ async function animateMove(mv) {
       grp.position.x = sx - ux * 0.22 * e; grp.position.z = sz - uz * 0.22 * e; grp.position.y = 0.12 * e; place(0);
     }, easeInOut);
     await tween(170, e => {                                   // savurma: öne atılıp aşağı keser
-      sword.rotation.x = lerp(-0.8, 2.05, e);
+      const ph = lerp(-0.8, 2.05, e); sword.rotation.x = ph; trailTo(trail, ph);
       const f = -0.22 + 0.78 * e; grp.position.x = sx + ux * f; grp.position.z = sz + uz * f; grp.position.y = 0.12 * (1 - e); place(0);
     }, easeIn);
-    burst(tp.x, 0.8, tp.z, '#fff0c0', 54, 3.6, 0.2); burst(tp.x, 0.6, tp.z, hex, 30, 2.4, 0.16);
+    burst(tp.x, 0.8, tp.z, '#fff6e6', 54, 3.6, 0.2); burst(tp.x, 0.6, tp.z, hex, 30, 2.4, 0.16);
     impactFx(1);
     const ax = grp.position.x, az = grp.position.z;
     const adv = tween(280, e => {
       grp.position.x = lerp(ax, to.x, e); grp.position.z = lerp(az, to.z, e); grp.position.y = 0;
-      sword.rotation.x = lerp(2.05, 2.35, e); sword.scale.setScalar(Math.max(0.01, S * (1 - e * e))); place(0);
+      const ph = lerp(2.05, 2.35, e); sword.rotation.x = ph; trailTo(trail, ph); trail.material.opacity = Math.max(0, 1 - e * 1.1);
+      sword.scale.setScalar(Math.max(0.01, S * (1 - e * e))); place(0);
     }, easeInOut).then(() => { scene.remove(pivot); disposeTree(pivot); });
     await Promise.all([dissolve(capGrp, ux, uz), adv]);
   }
@@ -1614,10 +1669,21 @@ function diveCam(sq, holdMs, side) {
   if (ptrs.size) return;
   const p = sqPos(sq), sv = { r: camT.radius, ph: camT.phi, th: camT.theta, x: camTargetT.x, y: camTargetT.y, z: camTargetT.z, fov: fovGoal };
   clearTimeout(camReturn);
-  if (side) {                                   // sinematik yan profil: kamera saldırı doğrusuna dik, alçak ve yakın
-    const vx = side.uz, vz = -side.ux, cx = Math.sin(camT.theta), cz = Math.cos(camT.theta), sg = (vx * cx + vz * cz) >= 0 ? 1 : -1;
-    camTargetT.set(side.x, 0.66, side.z);
-    camT.theta = nearestTheta(Math.atan2(vx * sg, vz * sg) + 0.14 * sg); camT.phi = 1.33; camT.radius = 6.6; fovGoal = 38;
+  if (side) {                                   // sinematik yan profil: kamera saldırı doğrusuna dik; öndeki taşlar vuruşu kapatmasın diye daha az kapatılan taraf seçilir
+    const vx = side.uz, vz = -side.ux, tgx = side.x, tgz = side.z, cx = Math.sin(camT.theta), cz = Math.cos(camT.theta);
+    const occl = sg => {
+      const th = Math.atan2(vx * sg, vz * sg) + 0.14 * sg, dx = Math.sin(th), dz = Math.cos(th); let n = 0;
+      pieces.forEach(g => {
+        if (side.skip && side.skip.indexOf(g) >= 0) return;
+        const rx = g.position.x - tgx, rz = g.position.z - tgz, s = rx * dx + rz * dz, q = Math.abs(rx * dz - rz * dx);
+        if (s > 0.7 && s < 2.9 && q < 0.5) n++;
+      });
+      return n;
+    };
+    const pref = (vx * cx + vz * cz) >= 0 ? 1 : -1, o1 = occl(pref), o2 = occl(-pref), sg = o2 < o1 ? -pref : pref, o = Math.min(o1, o2);
+    camTargetT.set(tgx, 0.7, tgz);
+    camT.theta = nearestTheta(Math.atan2(vx * sg, vz * sg) + 0.14 * sg);
+    camT.phi = o ? 1.02 : 1.2; camT.radius = o ? 8.2 : 7.4; fovGoal = o ? 34 : 35;
   } else {
     camTargetT.set(p.x, 0.55, p.z);
     camT.radius = Math.max(6.2, sv.r * 0.46); camT.phi = clamp(sv.ph - 0.18, 0.6, 1.0); camT.theta = sv.th + 0.5; fovGoal = sv.fov - 12;
@@ -2040,14 +2106,14 @@ function drawCard(r) {
   x.fillStyle = bg; x.fillRect(0, 0, W, H);
   // glow
   const gl = x.createRadialGradient(W / 2, 780, 20, W / 2, 780, 520); gl.addColorStop(0, 'rgba(255,170,60,.28)'); gl.addColorStop(1, 'rgba(255,170,60,0)'); x.fillStyle = gl; x.fillRect(0, 300, W, 1000);
-  x.strokeStyle = '#e0b64f'; x.lineWidth = 4; x.strokeRect(34, 34, W - 68, H - 68); x.lineWidth = 1.5; x.strokeRect(50, 50, W - 100, H - 100);
-  x.textAlign = 'center'; x.fillStyle = '#e0b64f';
+  x.strokeStyle = '#d6bd7e'; x.lineWidth = 4; x.strokeRect(34, 34, W - 68, H - 68); x.lineWidth = 1.5; x.strokeRect(50, 50, W - 100, H - 100);
+  x.textAlign = 'center'; x.fillStyle = '#d6bd7e';
   x.font = '700 78px Almendra, Georgia, serif'; x.fillText('3D BÜYÜCÜ SATRANÇ', W / 2, 168);
   x.font = '400 34px Spectral, Georgia, serif'; x.fillStyle = '#b9a98c';
   x.fillText(r.daily ? '✦ Günlük Meydan Okuma #' + r.no + ' ✦' : '✦ ' + ['', 'Çırak', 'Büyücü', 'Üstat'][r.level] + ' seviyesi ✦', W / 2, 222);
   // board
   const bs = 640, bx = (W - bs) / 2, by = 270, sq = bs / 8;
-  x.fillStyle = '#e0b64f'; x.fillRect(bx - 14, by - 14, bs + 28, bs + 28);
+  x.fillStyle = '#d6bd7e'; x.fillRect(bx - 14, by - 14, bs + 28, bs + 28);
   const flip = playerColor === 'b';
   for (let rr = 0; rr < 8; rr++) for (let ff = 0; ff < 8; ff++) {
     const file = flip ? 7 - ff : ff, rank = flip ? rr : 7 - rr;
@@ -2056,7 +2122,7 @@ function drawCard(r) {
     if (p) {
       x.font = '62px "Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", serif';
       x.textBaseline = 'middle';
-      x.lineWidth = 3; x.strokeStyle = p.color === 'w' ? '#5a3d0a' : '#e0b64f';
+      x.lineWidth = 3; x.strokeStyle = p.color === 'w' ? '#5a3d0a' : '#d6bd7e';
       x.fillStyle = p.color === 'w' ? '#fff6dc' : '#0b0908';
       const gch = GLY[p.color === 'w' ? 'b' : 'b'][p.type];
       x.strokeText(gch, bx + ff * sq + sq / 2, by + rr * sq + sq / 2 + 3); x.fillText(gch, bx + ff * sq + sq / 2, by + rr * sq + sq / 2 + 3);
@@ -2071,9 +2137,9 @@ function drawCard(r) {
   x.fillStyle = '#f3ead8'; x.font = '400 40px Spectral, Georgia, serif';
   x.fillText(r.moves + ' hamle · ' + r.mine + ' taş aldım · ' + r.theirs + ' taş kaybettim', W / 2, 1070);
   // pills
-  const pill = (cx, label, val) => { x.fillStyle = 'rgba(224,182,79,.12)'; x.strokeStyle = '#e0b64f'; x.lineWidth = 2; const w = 300, h = 110, px = cx - w / 2, py = 1120;
+  const pill = (cx, label, val) => { x.fillStyle = 'rgba(214,189,126,.12)'; x.strokeStyle = '#d6bd7e'; x.lineWidth = 2; const w = 300, h = 110, px = cx - w / 2, py = 1120;
     x.beginPath(); x.roundRect ? x.roundRect(px, py, w, h, 28) : x.rect(px, py, w, h); x.fill(); x.stroke();
-    x.fillStyle = '#e0b64f'; x.font = '700 52px Almendra, Georgia, serif'; x.fillText(val, cx, py + 56);
+    x.fillStyle = '#d6bd7e'; x.font = '700 52px Almendra, Georgia, serif'; x.fillText(val, cx, py + 56);
     x.fillStyle = '#b9a98c'; x.font = '400 24px Spectral, Georgia, serif'; x.fillText(label.toUpperCase(), cx, py + 92); };
   pill(W / 2 - 170, 'Galibiyet serisi', '🔥 ' + r.streak); pill(W / 2 + 170, r.daily ? 'Günlük seri' : 'Seviye', r.daily ? '✦ ' + r.dailyStreak : ['', 'Çırak', 'Büyücü', 'Üstat'][r.level]);
   x.fillStyle = '#7d6e55'; x.font = '400 26px Spectral, Georgia, serif'; x.fillText('Sen de dene — 3D Büyücü Satranç', W / 2, 1290);
