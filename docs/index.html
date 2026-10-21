@@ -1366,9 +1366,10 @@ const markerGroup = new THREE.Group(), hintGroup = new THREE.Group();
 scene.add(markerGroup); scene.add(hintGroup);
 const mk = {
   dot: new THREE.MeshBasicMaterial({ color: C('#7fd6ff'), transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }),
-  cap: new THREE.MeshBasicMaterial({ color: C('#ff3a2c'), transparent: true, opacity: 1, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
-  capGlow: new THREE.MeshBasicMaterial({ color: C('#ff2a1a'), transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
-  sel: new THREE.MeshBasicMaterial({ color: C('#e3bb62'), transparent: true, opacity: 0.38, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+  cap: new THREE.MeshBasicMaterial({ color: C('#ff4455'), transparent: true, opacity: 1, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
+  capGlow: new THREE.MeshBasicMaterial({ color: C('#ff2a3a'), transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
+  sel: new THREE.MeshBasicMaterial({ color: C('#ffe98a'), transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide }),
+  selRing: new THREE.MeshBasicMaterial({ color: C('#fff4b8'), transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
   hint: new THREE.MeshBasicMaterial({ color: C('#bcd8d2'), transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false, side: THREE.DoubleSide })
 };
 const mkGeo = {
@@ -1376,10 +1377,12 @@ const mkGeo = {
   ring: new THREE.RingGeometry(0.34, 0.46, 36).rotateX(-Math.PI / 2),
   capRing: new THREE.RingGeometry(0.5, 0.67, 48).rotateX(-Math.PI / 2),
   capGlow: new THREE.CircleGeometry(0.67, 40).rotateX(-Math.PI / 2),
-  sel: new THREE.PlaneGeometry(0.96, 0.96).rotateX(-Math.PI / 2)
+  sel: new THREE.CircleGeometry(0.6, 48).rotateX(-Math.PI / 2),
+  selRing: new THREE.RingGeometry(0.56, 0.63, 48).rotateX(-Math.PI / 2)
 };
 function addMarker(group, kind, sq) {
   const p = sqPos(sq);
+  if (kind === 'sel') { const sr = new THREE.Mesh(mkGeo.selRing, mk.selRing); sr.position.set(p.x, 0.018, p.z); sr.renderOrder = 3; sr.userData.kind = 'sel'; sr.userData.ph = 0; group.add(sr); }
   if (kind === 'capture') { const gl = new THREE.Mesh(mkGeo.capGlow, mk.capGlow); gl.position.set(p.x, 0.012, p.z); gl.renderOrder = 1; gl.userData.ph = Math.random() * 6; gl.userData.kind = 'capglow'; group.add(gl); }
   const m = new THREE.Mesh(kind === 'move' ? mkGeo.dot : kind === 'sel' ? mkGeo.sel : kind === 'capture' ? mkGeo.capRing : mkGeo.ring, kind === 'move' ? mk.dot : kind === 'sel' ? mk.sel : kind === 'capture' ? mk.cap : mk.hint);
   m.position.set(p.x, 0.016, p.z); m.renderOrder = 2; m.userData.ph = Math.random() * 6; m.userData.kind = kind;
