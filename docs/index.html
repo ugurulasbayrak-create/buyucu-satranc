@@ -437,7 +437,6 @@ const Engine = (function () {
 // ==ENGINE-END==
 (function () {
 'use strict';
-if (/[?&]debug\b/.test(location.search)) window.__dbg = s => eval(s);
 const $ = id => document.getElementById(id);
 if (typeof THREE === 'undefined' || typeof Chess === 'undefined') { $('fail').hidden = false; return; }
 
