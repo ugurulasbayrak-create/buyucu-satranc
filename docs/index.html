@@ -309,6 +309,456 @@ input.fld:focus{outline:2px solid var(--gold); outline-offset:1px}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 
+<script type="text/plain" id="engineSrc">
+// ==ENGINE2-START==
+// Hızlı satranç motoru: 0x88 tahta, yasal hamle üretimi, yinelemeli derinleşme, alfa-beta (PVS), taşıma tablosu,
+// boş hamle, geç hamle azaltma, sakin arama (quiescence). chess.js'e bağımlı değil; Web Worker içinde de çalışır.
+(function (G) {
+  'use strict';
+  const VAL = [0, 100, 320, 330, 500, 900, 0];
+  const MATE = 30000, INF = 32000;
+  const bd = new Int8Array(128);
+  let side = 1, castle = 0, ep = -1, half = 0, hLo = 0, hHi = 0;
+  const kSq = [0, 0];
+  const sI = s => (s === 1 ? 0 : 1);
+  const KN = [33, 31, 18, 14, -14, -18, -31, -33], KG = [1, -1, 16, -16, 15, 17, -15, -17], BD = [17, 15, -15, -17], RD = [16, -16, 1, -1];
+  const CR = new Uint8Array(128).fill(15);
+  CR[4] &= ~3; CR[0] &= ~2; CR[7] &= ~1; CR[116] &= ~12; CR[112] &= ~8; CR[119] &= ~4;
+
+  // --- Zobrist (deterministik) ---
+  let seed = 0x9e3779b9 | 0;
+  const rnd = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed | 0; };
+  const ZL = new Int32Array(13 * 128), ZH = new Int32Array(13 * 128), ZCL = new Int32Array(16), ZCH = new Int32Array(16), ZEL = new Int32Array(8), ZEH = new Int32Array(8);
+  for (let i = 0; i < ZL.length; i++) { ZL[i] = rnd(); ZH[i] = rnd(); }
+  for (let i = 0; i < 16; i++) { ZCL[i] = rnd(); ZCH[i] = rnd(); }
+  for (let i = 0; i < 8; i++) { ZEL[i] = rnd(); ZEH[i] = rnd(); }
+  const ZSL = rnd(), ZSH = rnd();
+  function hx(pc, sq) { const i = (pc + 6) * 128 + sq; hLo ^= ZL[i]; hHi ^= ZH[i]; }
+  function fullHash() {
+    hLo = 0; hHi = 0;
+    for (let s = 0; s < 128; s++) { if (s & 0x88) { s += 7; continue; } if (bd[s]) hx(bd[s], s); }
+    hLo ^= ZCL[castle]; hHi ^= ZCH[castle];
+    if (ep >= 0) { hLo ^= ZEL[ep & 7]; hHi ^= ZEH[ep & 7]; }
+    if (side === -1) { hLo ^= ZSL; hHi ^= ZSH; }
+  }
+
+  // --- değerlendirme tabloları ---
+  const PST = {
+    1: [0,0,0,0,0,0,0,0, 50,50,50,50,50,50,50,50, 10,10,20,30,30,20,10,10, 5,5,10,25,25,10,5,5, 0,0,0,20,20,0,0,0, 5,-5,-10,0,0,-10,-5,5, 5,10,10,-20,-20,10,10,5, 0,0,0,0,0,0,0,0],
+    2: [-50,-40,-30,-30,-30,-30,-40,-50, -40,-20,0,0,0,0,-20,-40, -30,0,10,15,15,10,0,-30, -30,5,15,20,20,15,5,-30, -30,0,15,20,20,15,0,-30, -30,5,10,15,15,10,5,-30, -40,-20,0,5,5,0,-20,-40, -50,-40,-30,-30,-30,-30,-40,-50],
+    3: [-20,-10,-10,-10,-10,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,10,10,5,0,-10, -10,5,5,10,10,5,5,-10, -10,0,10,10,10,10,0,-10, -10,10,10,10,10,10,10,-10, -10,5,0,0,0,0,5,-10, -20,-10,-10,-10,-10,-10,-10,-20],
+    4: [0,0,0,0,0,0,0,0, 5,10,10,10,10,10,10,5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, 0,0,0,5,5,0,0,0],
+    5: [-20,-10,-10,-5,-5,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,5,5,5,0,-10, -5,0,5,5,5,5,0,-5, 0,0,5,5,5,5,0,-5, -10,5,5,5,5,5,0,-10, -10,0,5,0,0,0,0,-10, -20,-10,-10,-5,-5,-10,-10,-20],
+    6: [-30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20, -10,-20,-20,-20,-20,-20,-20,-10, 20,20,0,0,0,0,20,20, 20,30,10,0,0,10,30,20]
+  };
+  const KEG = [-50,-40,-30,-20,-20,-30,-40,-50, -30,-20,-10,0,0,-10,-20,-30, -30,-10,20,30,30,20,-10,-30, -30,-10,30,40,40,30,-10,-30, -30,-10,30,40,40,30,-10,-30, -30,-10,20,30,30,20,-10,-30, -30,-30,0,0,0,0,-30,-30, -50,-30,-30,-30,-30,-30,-30,-50];
+  // PW[tip][kare] beyaz için, PB[tip][kare] siyah için (0x88 indeksli)
+  const PW = [], PB = [];
+  for (let t = 1; t <= 6; t++) { PW[t] = new Int16Array(128); PB[t] = new Int16Array(128); for (let s = 0; s < 128; s++) { if (s & 0x88) continue; const r = s >> 4, f = s & 7; PW[t][s] = PST[t][(7 - r) * 8 + f]; PB[t][s] = PST[t][r * 8 + f]; } }
+  const KEW = new Int16Array(128), KEB = new Int16Array(128);
+  for (let s = 0; s < 128; s++) { if (s & 0x88) continue; const r = s >> 4, f = s & 7; KEW[s] = KEG[(7 - r) * 8 + f]; KEB[s] = KEG[r * 8 + f]; }
+
+  const wpc = new Int8Array(10), bpc = new Int8Array(10), wpMin = new Int8Array(10), bpMax = new Int8Array(10);
+  function evaluate() {
+    let sc = 0, npm = 0, wB = 0, bB = 0;
+    wpc.fill(0); bpc.fill(0); wpMin.fill(9); bpMax.fill(-1);
+    let wk = -1, bk = -1;
+    for (let s = 0; s < 128; s++) {
+      if (s & 0x88) { s += 7; continue; }
+      const p = bd[s]; if (!p) continue;
+      const f = (s & 7) + 1, r = s >> 4;
+      if (p > 0) {
+        if (p === 6) { wk = s; continue; }
+        sc += VAL[p] + PW[p][s];
+        if (p === 1) { wpc[f]++; if (r < wpMin[f]) wpMin[f] = r; } else { npm += VAL[p]; if (p === 3) wB++; }
+      } else {
+        const q = -p;
+        if (q === 6) { bk = s; continue; }
+        sc -= VAL[q] + PB[q][s];
+        if (q === 1) { bpc[f]++; if (r > bpMax[f]) bpMax[f] = r; } else { npm += VAL[q]; if (q === 3) bB++; }
+      }
+    }
+    // vezir/at/fil/kale yerleşimi için ikinci geçiş: piyon yapısı ve kale sütunları
+    for (let f = 1; f <= 8; f++) {
+      if (wpc[f] > 1) sc -= 12 * (wpc[f] - 1);
+      if (bpc[f] > 1) sc += 12 * (bpc[f] - 1);
+      if (wpc[f] && !wpc[f - 1] && !wpc[f + 1]) sc -= 10;
+      if (bpc[f] && !bpc[f - 1] && !bpc[f + 1]) sc += 10;
+    }
+    for (let s = 0; s < 128; s++) {
+      if (s & 0x88) { s += 7; continue; }
+      const p = bd[s]; if (!p) continue;
+      const f = (s & 7) + 1, r = s >> 4;
+      if (p === 1) { // geçer piyon (beyaz)
+        if (bpMax[f - 1] <= r && bpMax[f] <= r && bpMax[f + 1] <= r) sc += 8 + r * r * 3;
+      } else if (p === -1) {
+        if (wpMin[f - 1] >= r && wpMin[f] >= r && wpMin[f + 1] >= r) sc -= 8 + (7 - r) * (7 - r) * 3;
+      } else if (p === 4) { if (!wpc[f]) sc += bpc[f] ? 8 : 15; }
+      else if (p === -4) { if (!bpc[f]) sc -= wpc[f] ? 8 : 15; }
+    }
+    if (wB >= 2) sc += 30;
+    if (bB >= 2) sc -= 30;
+    const ph = Math.min(npm, 4400) / 4400;           // 1 = orta oyun, 0 = son oyun
+    if (wk >= 0) {
+      let k = ph * PW[6][wk] + (1 - ph) * KEW[wk];
+      const f0 = wk & 7, r0 = wk >> 4;                  // piyon kalkanı
+      if (ph > 0.4 && r0 <= 1) { let sh = 0; for (let df = -1; df <= 1; df++) { const ff = f0 + df; if (ff < 0 || ff > 7) continue; if (bd[(r0 + 1) * 16 + ff] === 1) sh += 9; else if (bd[(r0 + 2) * 16 + ff] === 1) sh += 5; } k += sh * ph; }
+      sc += k;
+    }
+    if (bk >= 0) {
+      let k = ph * PB[6][bk] + (1 - ph) * KEB[bk];
+      const f0 = bk & 7, r0 = bk >> 4;
+      if (ph > 0.4 && r0 >= 6) { let sh = 0; for (let df = -1; df <= 1; df++) { const ff = f0 + df; if (ff < 0 || ff > 7) continue; if (bd[(r0 - 1) * 16 + ff] === -1) sh += 9; else if (bd[(r0 - 2) * 16 + ff] === -1) sh += 5; } k += sh * ph; }
+      sc -= k;
+    }
+    return Math.round(side === 1 ? sc : -sc) + 8;
+  }
+
+  // --- saldırı testi ---
+  function attacked(sq, by) {
+    let t, p, i, d;
+    if (by === 1) { t = sq - 15; if (!(t & 0x88) && bd[t] === 1) return true; t = sq - 17; if (!(t & 0x88) && bd[t] === 1) return true; }
+    else { t = sq + 15; if (!(t & 0x88) && bd[t] === -1) return true; t = sq + 17; if (!(t & 0x88) && bd[t] === -1) return true; }
+    for (i = 0; i < 8; i++) { t = sq + KN[i]; if (!(t & 0x88) && bd[t] === by * 2) return true; }
+    for (i = 0; i < 8; i++) { t = sq + KG[i]; if (!(t & 0x88) && bd[t] === by * 6) return true; }
+    for (i = 0; i < 4; i++) { d = BD[i]; t = sq + d; while (!(t & 0x88)) { p = bd[t]; if (p) { if (p === by * 3 || p === by * 5) return true; break; } t += d; } }
+    for (i = 0; i < 4; i++) { d = RD[i]; t = sq + d; while (!(t & 0x88)) { p = bd[t]; if (p) { if (p === by * 4 || p === by * 5) return true; break; } t += d; } }
+    return false;
+  }
+
+  // --- hamle üretimi: m = from | to<<7 | promo<<14 | bayrak<<17 (2 = geçerken alma, 4 = rok, 8 = çift adım) ---
+  const MB = new Int32Array(128 * 256), MS = new Int32Array(128 * 256);
+  function gen(base, caps) {
+    let n = base; const us = side, dir = us * 16;
+    for (let s = 0; s < 128; s++) {
+      if (s & 0x88) { s += 7; continue; }
+      const p = bd[s] * us; if (p <= 0) continue;
+      let t, c, i, d;
+      if (p === 1) {
+        const promoRank = us === 1 ? 6 : 1, startRank = us === 1 ? 1 : 6, r = s >> 4;
+        t = s + dir;
+        if (bd[t] === 0) {
+          if (r === promoRank) { MB[n++] = s | (t << 7) | (5 << 14); if (!caps) { MB[n++] = s | (t << 7) | (4 << 14); MB[n++] = s | (t << 7) | (3 << 14); MB[n++] = s | (t << 7) | (2 << 14); } }
+          else if (!caps) { MB[n++] = s | (t << 7); if (r === startRank && bd[t + dir] === 0) MB[n++] = s | ((t + dir) << 7) | (8 << 17); }
+        }
+        for (i = -1; i <= 1; i += 2) {
+          t = s + dir + i; if (t & 0x88) continue;
+          c = bd[t] * us;
+          if (c < 0) {
+            if (r === promoRank) { MB[n++] = s | (t << 7) | (5 << 14); if (!caps) { MB[n++] = s | (t << 7) | (4 << 14); MB[n++] = s | (t << 7) | (3 << 14); MB[n++] = s | (t << 7) | (2 << 14); } }
+            else MB[n++] = s | (t << 7);
+          } else if (t === ep) MB[n++] = s | (t << 7) | (2 << 17);
+        }
+      } else if (p === 2) {
+        for (i = 0; i < 8; i++) { t = s + KN[i]; if (t & 0x88) continue; c = bd[t] * us; if (c < 0 || (c === 0 && !caps)) MB[n++] = s | (t << 7); }
+      } else if (p === 6) {
+        for (i = 0; i < 8; i++) { t = s + KG[i]; if (t & 0x88) continue; c = bd[t] * us; if (c < 0 || (c === 0 && !caps)) MB[n++] = s | (t << 7); }
+        if (!caps) {
+          if (us === 1) {
+            if ((castle & 1) && !bd[5] && !bd[6] && !attacked(4, -1) && !attacked(5, -1) && !attacked(6, -1)) MB[n++] = 4 | (6 << 7) | (4 << 17);
+            if ((castle & 2) && !bd[3] && !bd[2] && !bd[1] && !attacked(4, -1) && !attacked(3, -1) && !attacked(2, -1)) MB[n++] = 4 | (2 << 7) | (4 << 17);
+          } else {
+            if ((castle & 4) && !bd[117] && !bd[118] && !attacked(116, 1) && !attacked(117, 1) && !attacked(118, 1)) MB[n++] = 116 | (118 << 7) | (4 << 17);
+            if ((castle & 8) && !bd[115] && !bd[114] && !bd[113] && !attacked(116, 1) && !attacked(115, 1) && !attacked(114, 1)) MB[n++] = 116 | (114 << 7) | (4 << 17);
+          }
+        }
+      } else {
+        if (p !== 4) for (i = 0; i < 4; i++) { d = BD[i]; t = s + d; while (!(t & 0x88)) { c = bd[t] * us; if (c === 0) { if (!caps) MB[n++] = s | (t << 7); } else { if (c < 0) MB[n++] = s | (t << 7); break; } t += d; } }
+        if (p !== 3) for (i = 0; i < 4; i++) { d = RD[i]; t = s + d; while (!(t & 0x88)) { c = bd[t] * us; if (c === 0) { if (!caps) MB[n++] = s | (t << 7); } else { if (c < 0) MB[n++] = s | (t << 7); break; } t += d; } }
+      }
+    }
+    return n;
+  }
+
+  function make(m) {
+    const from = m & 127, to = (m >> 7) & 127, promo = (m >> 14) & 7, fl = m >> 17, pc = bd[from];
+    let cap = bd[to];
+    hx(pc, from); bd[from] = 0;
+    if (fl & 2) { const cs = to - 16 * side; cap = bd[cs]; bd[cs] = 0; hx(cap, cs); }
+    else if (cap) hx(cap, to);
+    const np = promo ? side * promo : pc;
+    bd[to] = np; hx(np, to);
+    if (fl & 4) {
+      let rf, rt; if (to > from) { rf = from + 3; rt = from + 1; } else { rf = from - 4; rt = from - 1; }
+      const rk = bd[rf]; hx(rk, rf); bd[rf] = 0; bd[rt] = rk; hx(rk, rt);
+    }
+    if (pc === 6 * side) kSq[sI(side)] = to;
+    hLo ^= ZCL[castle]; hHi ^= ZCH[castle]; castle &= CR[from] & CR[to]; hLo ^= ZCL[castle]; hHi ^= ZCH[castle];
+    if (ep >= 0) { hLo ^= ZEL[ep & 7]; hHi ^= ZEH[ep & 7]; }
+    ep = (fl & 8) ? from + 16 * side : -1;
+    if (ep >= 0) { hLo ^= ZEL[ep & 7]; hHi ^= ZEH[ep & 7]; }
+    half = (pc === side || cap) ? 0 : half + 1;
+    side = -side; hLo ^= ZSL; hHi ^= ZSH;
+    return cap;
+  }
+  function unmake(m, cap) {
+    side = -side;
+    const from = m & 127, to = (m >> 7) & 127, promo = (m >> 14) & 7, fl = m >> 17;
+    const pc = promo ? side : bd[to];
+    bd[from] = pc;
+    if (fl & 2) { bd[to] = 0; bd[to - 16 * side] = cap; } else bd[to] = cap;
+    if (fl & 4) { let rf, rt; if (to > from) { rf = from + 3; rt = from + 1; } else { rf = from - 4; rt = from - 1; } bd[rf] = bd[rt]; bd[rt] = 0; }
+    if (pc === 6 * side) kSq[sI(side)] = from;
+  }
+
+  // --- FEN ---
+  function setFen(fen) {
+    bd.fill(0);
+    const parts = fen.trim().split(/\s+/), rows = parts[0].split('/');
+    const map = { p: 1, n: 2, b: 3, r: 4, q: 5, k: 6 };
+    for (let r = 0; r < 8; r++) {
+      let f = 0;
+      for (const ch of rows[r]) {
+        if (ch >= '1' && ch <= '8') { f += +ch; continue; }
+        const lo = ch.toLowerCase(), col = ch === lo ? -1 : 1, s = (7 - r) * 16 + f;
+        bd[s] = map[lo] * col; if (lo === 'k') kSq[sI(col)] = s; f++;
+      }
+    }
+    side = parts[1] === 'b' ? -1 : 1;
+    castle = 0; const cs = parts[2] || '-';
+    if (cs.includes('K')) castle |= 1; if (cs.includes('Q')) castle |= 2; if (cs.includes('k')) castle |= 4; if (cs.includes('q')) castle |= 8;
+    ep = (parts[3] && parts[3] !== '-') ? (parts[3].charCodeAt(0) - 97) + (parts[3].charCodeAt(1) - 49) * 16 : -1;
+    half = +(parts[4] || 0) || 0;
+    fullHash();
+  }
+  const sqName = s => 'abcdefgh'[s & 7] + ((s >> 4) + 1);
+  const PCH = ['', '', 'n', 'b', 'r', 'q'];
+  const moveObj = m => ({ from: sqName(m & 127), to: sqName((m >> 7) & 127), promotion: ((m >> 14) & 7) ? PCH[(m >> 14) & 7] : undefined });
+
+  function perft(d, ply) {
+    if (d === 0) return 1;
+    const base = ply * 256, n = gen(base, false); let tot = 0;
+    for (let i = base; i < n; i++) {
+      const oc = castle, oe = ep, oh = half, l = hLo, h = hHi, cap = make(MB[i]);
+      if (!attacked(kSq[sI(-side)], side)) tot += perft(d - 1, ply + 1);
+      unmake(MB[i], cap); castle = oc; ep = oe; half = oh; hLo = l; hHi = h;
+    }
+    return tot;
+  }
+
+  // --- arama ---
+  const TT_N = 1 << 18, TM = TT_N - 1;
+  const ttL = new Int32Array(TT_N), ttH = new Int32Array(TT_N), ttS = new Int16Array(TT_N), ttM = new Int32Array(TT_N), ttD = new Int8Array(TT_N), ttF = new Int8Array(TT_N);
+  const keyL = new Int32Array(128), keyH = new Int32Array(128);
+  const killer1 = new Int32Array(128), killer2 = new Int32Array(128), hist = new Int32Array(2 * 128 * 128);
+  let nodes = 0, stop = false, limit = 0, ttAge = 0;
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+  function scoreMoves(base, n, ttMove, ply) {
+    for (let i = base; i < n; i++) {
+      const m = MB[i], from = m & 127, to = (m >> 7) & 127, promo = (m >> 14) & 7;
+      let sc = 0;
+      if (m === ttMove) sc = 2000000;
+      else {
+        const cap = (m >> 17) & 2 ? 1 : Math.abs(bd[to]);
+        if (cap) sc = 1000000 + VAL[cap] * 10 - VAL[Math.abs(bd[from])] / 10 + (promo ? 800 : 0);
+        else if (promo) sc = 900000 + promo;
+        else if (m === killer1[ply]) sc = 800000;
+        else if (m === killer2[ply]) sc = 790000;
+        else sc = hist[(sI(side) * 128 + from) * 128 + to];
+      }
+      MS[i] = sc;
+    }
+  }
+  function pick(base, n, i) {
+    let bi = i, bs = MS[i];
+    for (let j = i + 1; j < n; j++) if (MS[j] > bs) { bs = MS[j]; bi = j; }
+    if (bi !== i) { const tm = MB[i]; MB[i] = MB[bi]; MB[bi] = tm; const ts = MS[i]; MS[i] = MS[bi]; MS[bi] = ts; }
+    return MB[i];
+  }
+
+  function qsearch(alpha, beta, ply) {
+    if ((++nodes & 2047) === 0 && now() > limit) stop = true;
+    if (stop) return 0;
+    const stand = evaluate();
+    if (ply >= 100) return stand;
+    if (stand >= beta) return stand;
+    if (stand > alpha) alpha = stand;
+    const base = ply * 256, n = gen(base, true);
+    scoreMoves(base, n, 0, ply);
+    for (let i = base; i < n; i++) {
+      const m = pick(base, n, i);
+      const to = (m >> 7) & 127, capv = ((m >> 17) & 2) ? 100 : VAL[Math.abs(bd[to])];
+      if (stand + capv + 200 < alpha && !((m >> 14) & 7)) continue;   // delta budaması
+      const oc = castle, oe = ep, oh = half, l = hLo, h = hHi, cap = make(m);
+      let sc;
+      if (attacked(kSq[sI(-side)], side)) sc = -INF; else sc = -qsearch(-beta, -alpha, ply + 1);
+      unmake(m, cap); castle = oc; ep = oe; half = oh; hLo = l; hHi = h;
+      if (stop) return 0;
+      if (sc >= beta) return sc;
+      if (sc > alpha) alpha = sc;
+    }
+    return alpha;
+  }
+
+  function search(depth, alpha, beta, ply, nullOk) {
+    if ((++nodes & 2047) === 0 && now() > limit) stop = true;
+    if (stop) return 0;
+    keyL[ply] = hLo; keyH[ply] = hHi;
+    if (ply > 0) {
+      if (half >= 100) return 0;
+      for (let i = ply - 2; i >= 0; i -= 2) if (keyL[i] === hLo && keyH[i] === hHi) return 0;   // tekrar
+    }
+    const inCheck = attacked(kSq[sI(side)], -side);
+    if (inCheck && ply < 90) depth++;
+    if (depth <= 0) return qsearch(alpha, beta, ply);
+    if (ply >= 100) return evaluate();
+    const a0 = alpha, pv = beta - alpha > 1;
+    // taşıma tablosu
+    let ttMove = 0; const ti = hLo & TM;
+    if (ttL[ti] === hLo && ttH[ti] === hHi) {
+      ttMove = ttM[ti];
+      if (ttD[ti] >= depth && !pv && ply > 0) {
+        let s = ttS[ti]; if (s > MATE - 200) s -= ply; else if (s < -MATE + 200) s += ply;
+        const f = ttF[ti];
+        if (f === 0 || (f === 1 && s >= beta) || (f === 2 && s <= alpha)) return s;
+      }
+    }
+    // boş hamle
+    if (nullOk && !inCheck && depth >= 3 && !pv) {
+      let np = 0; for (let s = 0; s < 128; s++) { if (s & 0x88) { s += 7; continue; } const q = bd[s] * side; if (q > 1 && q < 6) { np++; break; } }
+      if (np) {
+        const oe = ep, oh = half, l = hLo, h = hHi;
+        if (ep >= 0) { hLo ^= ZEL[ep & 7]; hHi ^= ZEH[ep & 7]; ep = -1; }
+        side = -side; hLo ^= ZSL; hHi ^= ZSH; half++;
+        const sc = -search(depth - 3, -beta, -beta + 1, ply + 1, false);
+        side = -side; ep = oe; half = oh; hLo = l; hHi = h;
+        if (stop) return 0;
+        if (sc >= beta) return sc >= MATE - 200 ? beta : sc;
+      }
+    }
+    const base = ply * 256, n = gen(base, false);
+    scoreMoves(base, n, ttMove, ply);
+    let best = -INF, bestM = 0, legal = 0;
+    for (let i = base; i < n; i++) {
+      const m = pick(base, n, i);
+      const oc = castle, oe = ep, oh = half, l = hLo, h = hHi, cap = make(m);
+      if (attacked(kSq[sI(-side)], side)) { unmake(m, cap); castle = oc; ep = oe; half = oh; hLo = l; hHi = h; continue; }
+      legal++;
+      const quiet = !cap && !((m >> 14) & 7);
+      const gives = attacked(kSq[sI(side)], -side);
+      let sc;
+      if (legal === 1) sc = -search(depth - 1, -beta, -alpha, ply + 1, true);
+      else {
+        let red = 0;
+        if (depth >= 3 && legal > 4 && quiet && !inCheck && !gives) red = legal > 10 ? 2 : 1;
+        sc = -search(depth - 1 - red, -alpha - 1, -alpha, ply + 1, true);
+        if (sc > alpha && (red || sc < beta)) sc = -search(depth - 1, -beta, -alpha, ply + 1, true);
+      }
+      unmake(m, cap); castle = oc; ep = oe; half = oh; hLo = l; hHi = h;
+      if (stop) return 0;
+      if (sc > best) { best = sc; bestM = m; if (sc > alpha) { alpha = sc; if (alpha >= beta) {
+        if (quiet) { if (killer1[ply] !== m) { killer2[ply] = killer1[ply]; killer1[ply] = m; } const hi = (sI(side) * 128 + (m & 127)) * 128 + ((m >> 7) & 127); hist[hi] += depth * depth; if (hist[hi] > 500000) for (let k = 0; k < hist.length; k++) hist[k] >>= 1; }
+        break; } } }
+    }
+    if (!legal) return inCheck ? -MATE + ply : 0;
+    let s = best; if (s > MATE - 200) s += ply; else if (s < -MATE + 200) s -= ply;
+    ttL[ti] = hLo; ttH[ti] = hHi; ttS[ti] = s; ttM[ti] = bestM; ttD[ti] = Math.min(depth, 100); ttF[ti] = best >= beta ? 1 : (best <= a0 ? 2 : 0);
+    return best;
+  }
+
+  // --- kök: yinelemeli derinleşme + seviye gürültüsü ---
+  function think(o) {
+    nodes = 0; stop = false; const t0 = now(); limit = t0 + (o.timeMs || 1000);
+    killer1.fill(0); killer2.fill(0); hist.fill(0);
+    const base0 = 0, n0 = gen(base0, false), roots = [];
+    for (let i = base0; i < n0; i++) {
+      const m = MB[i], oc = castle, oe = ep, oh = half, l = hLo, h = hHi, cap = make(m);
+      const ok = !attacked(kSq[sI(-side)], side);
+      unmake(m, cap); castle = oc; ep = oe; half = oh; hLo = l; hHi = h;
+      if (ok) roots.push({ m, s: 0 });
+    }
+    if (!roots.length) return null;
+    if (roots.length === 1) return { move: roots[0].m, score: 0, depth: 0 };
+    scoreMoves(base0, n0, 0, 0);
+    const sm = new Map(); for (let i = base0; i < n0; i++) sm.set(MB[i], MS[i]);
+    roots.sort((a, b) => (sm.get(b.m) || 0) - (sm.get(a.m) || 0));
+    const noise = o.noise || 0; let done = null, doneDepth = 0;
+    keyL[0] = hLo; keyH[0] = hHi;
+    for (let d = 1; d <= (o.maxDepth || 4); d++) {
+      limit = d === 1 ? Infinity : t0 + (o.timeMs || 1000);
+      const cur = []; let best = -INF, alpha = -INF, aborted = false;
+      for (let i = 0; i < roots.length; i++) {
+        const m = roots[i].m, oc = castle, oe = ep, oh = half, l = hLo, h = hHi, cap = make(m);
+        let sc;
+        if (noise > 0) {
+          const lo = best === -INF ? -INF : best - noise - 1;
+          sc = -search(d - 1, -INF, lo === -INF ? INF : -lo, 1, true);
+        } else if (i === 0) sc = -search(d - 1, -INF, INF, 1, true);
+        else { sc = -search(d - 1, -alpha - 1, -alpha, 1, true); if (sc > alpha) sc = -search(d - 1, -INF, -alpha, 1, true); }
+        unmake(m, cap); castle = oc; ep = oe; half = oh; hLo = l; hHi = h;
+        if (stop && d > 1) { aborted = true; break; }
+        cur.push({ m, s: sc });
+        if (sc > best) best = sc;
+        if (noise <= 0 && sc > alpha) alpha = sc;
+      }
+      if (aborted) break;
+      // yeni sıralama: en iyi önce
+      cur.sort((a, b) => b.s - a.s);
+      done = cur; doneDepth = d;
+      for (let i = 0; i < cur.length; i++) roots[i] = { m: cur[i].m, s: cur[i].s };
+      if (best >= MATE - 100 || best <= -MATE + 100) { if (noise <= 0) break; }
+      if (now() - t0 > (o.timeMs || 1000) * 0.45) break;       // sonraki derinlik süreye sığmaz
+      if (stop) break;
+    }
+    if (!done) done = roots.map(r => ({ m: r.m, s: 0 }));
+    const top = done[0].s;
+    // gürültüsüz (kesin) modda yalnızca ispatlanmış en iyi hamle seçilir; sıfır-pencere sonuçları sadece üst sınırdır, eşit sayılmaz
+    let pool = (noise > 0 && Math.abs(top) < MATE - 200) ? done.filter(r => r.s >= top - noise) : [done[0]];
+    if (o.top4 && Math.random() < o.top4) pool = done.slice(0, Math.min(4, done.length));
+    if (!pool.length) pool = [done[0]];
+    const ch = pool[Math.floor(Math.random() * pool.length)];
+    return { move: ch.m, score: ch.s, depth: doneDepth, nodes };
+  }
+
+  const LV = {
+    1: { maxDepth: 2, timeMs: 400, noise: 110, top4: 0.25 },
+    2: { maxDepth: 4, timeMs: 900, noise: 8 },
+    3: { maxDepth: 7, timeMs: 2400, noise: 3 }
+  };
+  function run(req) {
+    setFen(req.fen);
+    const cfg = Object.assign({}, LV[req.level] || LV[2]);
+    if (req.noise !== undefined && req.noise !== null) cfg.noise = req.noise;
+    if (req.timeScale) cfg.timeMs *= req.timeScale;
+    const r = think(cfg);
+    if (!r) return null;
+    const o = moveObj(r.move); o.score = r.score; o.depth = r.depth; o.nodes = r.nodes || 0;
+    return o;
+  }
+  function toFen() {
+    const chs = ['', 'p', 'n', 'b', 'r', 'q', 'k']; let out = [];
+    for (let r = 7; r >= 0; r--) { let row = '', e = 0; for (let f = 0; f < 8; f++) { const p = bd[r * 16 + f]; if (!p) { e++; continue; } if (e) { row += e; e = 0; } const c = chs[Math.abs(p)]; row += p > 0 ? c.toUpperCase() : c; } if (e) row += e; out.push(row); }
+    return out.join('/') + ' ' + (side === 1 ? 'w' : 'b') + ' ' + ((castle & 1 ? 'K' : '') + (castle & 2 ? 'Q' : '') + (castle & 4 ? 'k' : '') + (castle & 8 ? 'q' : '') || '-') + ' ' + (ep >= 0 ? sqName(ep) : '-') + ' ' + half + ' 1';
+  }
+  function legalList() {
+    const n = gen(0, false), res = [];
+    for (let i = 0; i < n; i++) { const m = MB[i], oc = castle, oe = ep, oh = half, l = hLo, h = hHi, cap = make(m); const ok = !attacked(kSq[sI(-side)], side); unmake(m, cap); castle = oc; ep = oe; half = oh; hLo = l; hHi = h; if (ok) res.push(m); }
+    return res;
+  }
+  G.Engine2 = {
+    legal: fen => { setFen(fen); return legalList().map(moveObj); },
+    apply: (fen, mo) => { setFen(fen); const m = legalList().find(x => { const o = moveObj(x); return o.from === mo.from && o.to === mo.to && (o.promotion || '') === (mo.promotion || ''); }); if (m === undefined) return null; make(m); return toFen(); },
+    hashTest: (fen, plies) => {
+      setFen(fen); let bad = 0, steps = 0;
+      for (let p = 0; p < plies; p++) {
+        const lm = legalList(); if (!lm.length) break;
+        const m = lm[Math.floor(Math.random() * lm.length)], oc = castle, oe = ep, oh = half, l = hLo, h = hHi;
+        const cap = make(m); steps++;
+        const l2 = hLo, h2 = hHi; fullHash(); if (hLo !== l2 || hHi !== h2) bad++;
+        unmake(m, cap); castle = oc; ep = oe; half = oh; hLo = l; hHi = h; const l3 = hLo, h3 = hHi; fullHash(); if (hLo !== l3 || hHi !== h3) bad++;
+        make(m);   // ilerle
+      }
+      return { steps, bad };
+    },
+    inCheck: fen => { setFen(fen); return attacked(kSq[sI(side)], -side); },
+    run, perft: (fen, d) => { setFen(fen); return perft(d, 0); }, setFen, hash: () => [hLo, hHi], fullHash, evaluate, LV };
+  if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typeof window === 'undefined') {
+    self.onmessage = e => { let out = null; try { out = G.Engine2.run(e.data.req); } catch (err) { out = { error: String(err && err.message || err) }; } self.postMessage({ id: e.data.id, out }); };
+  }
+})(typeof self !== 'undefined' ? self : globalThis);
+// ==ENGINE2-END==
+</script>
 <script>window.addEventListener('error', function (e) {
   var c = document.getElementById('chipText');
   if (c) c.textContent = 'Hata: ' + e.message + ' [satir ' + e.lineno + ']';
@@ -322,115 +772,53 @@ window.addEventListener('unhandledrejection', function (e) {
 const BOARD_SQ = [];
 for (let r = 0; r < 8; r++) { const row = []; for (let c = 0; c < 8; c++) row.push('abcdefgh'[c] + (8 - r)); BOARD_SQ.push(row); }
 function boardOf(g) { return BOARD_SQ.map(row => row.map(sq => g.get(sq))); }
+// Satranç motoru (kaynağı #engineSrc içinde): Web Worker'da çalışır, arayüz donmaz; worker yoksa ana iş parçacığında çalışır.
 const Engine = (function () {
-  const VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
-  const PST = {
-    p: [0,0,0,0,0,0,0,0, 50,50,50,50,50,50,50,50, 10,10,20,30,30,20,10,10, 5,5,10,25,25,10,5,5, 0,0,0,20,20,0,0,0, 5,-5,-10,0,0,-10,-5,5, 5,10,10,-20,-20,10,10,5, 0,0,0,0,0,0,0,0],
-    n: [-50,-40,-30,-30,-30,-30,-40,-50, -40,-20,0,0,0,0,-20,-40, -30,0,10,15,15,10,0,-30, -30,5,15,20,20,15,5,-30, -30,0,15,20,20,15,0,-30, -30,5,10,15,15,10,5,-30, -40,-20,0,5,5,0,-20,-40, -50,-40,-30,-30,-30,-30,-40,-50],
-    b: [-20,-10,-10,-10,-10,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,10,10,5,0,-10, -10,5,5,10,10,5,5,-10, -10,0,10,10,10,10,0,-10, -10,10,10,10,10,10,10,-10, -10,5,0,0,0,0,5,-10, -20,-10,-10,-10,-10,-10,-10,-20],
-    r: [0,0,0,0,0,0,0,0, 5,10,10,10,10,10,10,5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, 0,0,0,5,5,0,0,0],
-    q: [-20,-10,-10,-5,-5,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,5,5,5,0,-10, -5,0,5,5,5,5,0,-5, 0,0,5,5,5,5,0,-5, -10,5,5,5,5,5,0,-10, -10,0,5,0,0,0,0,-10, -20,-10,-10,-5,-5,-10,-10,-20],
-    k: [-30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20, -10,-20,-20,-20,-20,-20,-20,-10, 20,20,0,0,0,0,20,20, 20,30,10,0,0,10,30,20]
-  };
-  const MATE = 100000;
-  const LEVELS = {
-    1: { depth: 1, q: false, noise: 90, budget: 1500 },
-    2: { depth: 2, q: true, noise: 12, budget: 3000 },
-    3: { depth: 3, q: true, noise: 0, budget: 3500 }
-  };
-  let useQ = true;
-
-  function evaluate(g) {
-    const b = boardOf(g);
-    let s = 0;
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        const p = b[r][c];
-        if (!p) continue;
-        const v = VAL[p.type] + (p.color === 'w' ? PST[p.type][r * 8 + c] : PST[p.type][(7 - r) * 8 + c]);
-        s += p.color === 'w' ? v : -v;
-      }
-    }
-    return s;
+  let worker = null, wBad = false, seq = 0, srcText = null, syncE = null;
+  const jobs = new Map();
+  const getSrc = () => srcText || (srcText = document.getElementById('engineSrc').textContent);
+  function killWorker() { if (worker) { try { worker.terminate(); } catch (e) {} worker = null; } }
+  function failJobs() { const all = Array.from(jobs.values()); jobs.clear(); all.forEach(j => j.fail()); }
+  function getWorker() {
+    if (wBad) return null;
+    if (worker) return worker;
+    try {
+      const w = new Worker(URL.createObjectURL(new Blob([getSrc()], { type: 'text/javascript' })));
+      w.onmessage = e => { const j = jobs.get(e.data && e.data.id); if (j) { jobs.delete(e.data.id); j.done(e.data.out); } };
+      w.onerror = () => { wBad = true; killWorker(); failJobs(); };
+      worker = w;
+    } catch (e) { wBad = true; worker = null; }
+    return worker;
   }
-  const side = g => (g.turn() === 'w' ? 1 : -1);
-  function order(moves) {
-    return moves
-      .map(m => ({ m, k: (m.captured ? 10 * VAL[m.captured] - VAL[m.piece] / 10 : 0) + (m.promotion ? 800 : 0) }))
-      .sort((a, b) => b.k - a.k)
-      .map(o => o.m);
+  function runSync(req) {
+    if (!syncE) { (0, eval)(getSrc()); syncE = window.Engine2; }
+    return syncE.run(req);
   }
-  const play = (g, m) => g.move({ from: m.from, to: m.to, promotion: m.promotion });
-
-  function quiesce(g, alpha, beta, qd) {
-    const stand = side(g) * evaluate(g);
-    if (stand >= beta) return stand;
-    if (stand > alpha) alpha = stand;
-    if (qd >= 3) return alpha;
-    const caps = order(g.moves({ verbose: true }).filter(m => m.captured || m.promotion));
-    for (const m of caps) {
-      play(g, m);
-      const sc = -quiesce(g, -beta, -alpha, qd + 1);
-      g.undo();
-      if (sc >= beta) return sc;
-      if (sc > alpha) alpha = sc;
-    }
-    return alpha;
-  }
-  function negamax(g, depth, alpha, beta, ply) {
-    if (depth <= 0) return useQ ? quiesce(g, alpha, beta, 0) : side(g) * evaluate(g);
-    const moves = g.moves({ verbose: true });
-    if (!moves.length) return g.in_check() ? -MATE + ply : 0;
-    let best = -Infinity;
-    for (const m of order(moves)) {
-      play(g, m);
-      const sc = -negamax(g, depth - 1, -beta, -alpha, ply + 1);
-      g.undo();
-      if (sc > best) best = sc;
-      if (best > alpha) alpha = best;
-      if (alpha >= beta) break;
-    }
-    return best;
-  }
-
   function findBest(fen, level, opts) {
     opts = opts || {};
     return new Promise(resolve => {
-      const g = new Chess(fen);
-      const cfg = LEVELS[level] || LEVELS[2];
-      const noise = opts.noise !== undefined ? opts.noise : cfg.noise;
-      const cancel = opts.cancel || (() => false);
-      const root = order(g.moves({ verbose: true }));
-      if (!root.length) return resolve(null);
-      useQ = cfg.q;
-      const results = [];
-      const start = performance.now();
-      let i = 0, alpha = -Infinity;
-      const full = noise > 0;
-      function step() {
-        if (cancel()) return resolve(null);
-        const t0 = performance.now();
-        do {
-          if (i >= root.length) break;
-          const m = root[i++];
-          play(g, m);
-          const d = performance.now() - start > cfg.budget ? Math.max(1, cfg.depth - 1) : cfg.depth;
-          let sc;
-          if (g.in_checkmate()) sc = MATE;
-          else sc = -negamax(g, d - 1, full ? -Infinity : -Infinity, full ? Infinity : -alpha, 1);
-          g.undo();
-          results.push({ m, sc });
-          if (sc > alpha) alpha = sc;
-        } while (performance.now() - t0 < 14 && i < root.length);
-        if (i < root.length) return setTimeout(step, 0);
-        results.sort((a, b) => b.sc - a.sc);
-        const top = results[0].sc;
-        let pool = results.filter(r => r.sc >= top - noise);
-        if (level === 1 && Math.random() < 0.25) pool = results.slice(0, Math.min(4, results.length));
-        if (!pool.length) pool = [results[0]];
-        resolve(pool[Math.floor(Math.random() * pool.length)].m);
-      }
-      step();
+      const id = ++seq; let finished = false, poll = null, dog = null;
+      const req = { fen, level, noise: opts.noise };
+      const cancelled = () => !!(opts.cancel && opts.cancel());
+      const end = out => {
+        if (finished) return; finished = true; clearInterval(poll); clearTimeout(dog); jobs.delete(id);
+        resolve(out && !out.error && out.from ? { from: out.from, to: out.to, promotion: out.promotion } : null);
+      };
+      const viaSync = () => {
+        if (finished) return;
+        setTimeout(() => {
+          if (finished) return;
+          if (cancelled()) { end(null); return; }
+          let out = null; try { out = runSync(Object.assign({ timeScale: 0.6 }, req)); } catch (e) { out = null; }
+          end(out);
+        }, 30);
+      };
+      const w = getWorker();
+      if (!w) { viaSync(); return; }
+      jobs.set(id, { done: out => { if (out && out.error) viaSync(); else end(out); }, fail: viaSync });
+      try { w.postMessage({ id, req }); } catch (e) { wBad = true; killWorker(); jobs.delete(id); viaSync(); return; }
+      poll = setInterval(() => { if (cancelled()) { killWorker(); end(null); failJobs(); } }, 120);
+      dog = setTimeout(() => { if (finished) return; wBad = true; killWorker(); jobs.delete(id); viaSync(); }, 20000);
     });
   }
   return { findBest };
@@ -1975,7 +2363,7 @@ async function hint() {
   if (busy || animating || gameOver || game.turn() !== playerColor) return;
   const ep = epoch;
   setBusy(true); setStatus('İpucu aranıyor', 'you');
-  const best = await Engine.findBest(game.fen(), 2, { noise: 0, cancel: () => ep !== epoch });
+  const best = await Engine.findBest(game.fen(), 3, { noise: 0, cancel: () => ep !== epoch });
   if (ep !== epoch) return;
   setBusy(false);
   if (!best) { updateStatus(); return; }
