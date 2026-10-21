@@ -1562,7 +1562,7 @@ async function animateMove(mv) {
   }
   const dur = clamp(380 + Math.hypot(to.x - from.x, to.z - from.z) * 95, 450, 1000) + (capSq ? 260 : 0);
   follow.goal = capGrp ? 0 : 1;
-  if (capGrp) diveCam(capSq, dur + 2500, { x: (dest.x + capGrp.position.x) / 2, z: (dest.z + capGrp.position.z) / 2, ux, uz, skip: [grp, capGrp] });
+  if (capGrp) diveCam(capSq, dur + 7000, { x: (dest.x + capGrp.position.x) / 2, z: (dest.z + capGrp.position.z) / 2, ux, uz, ax: dest.x, az: dest.z, tx: capGrp.position.x, tz: capGrp.position.z, skip: [grp, capGrp] });
   const jobs = [tween(dur, (e, k) => {
     follow.x = grp.position.x; follow.z = grp.position.z;
     grp.position.x = lerp(from.x, dest.x, e); grp.position.z = lerp(from.z, dest.z, e); grp.position.y = Math.sin(Math.PI * k) * h;
@@ -1597,6 +1597,7 @@ async function animateMove(mv) {
       sword.scale.setScalar(Math.max(0.01, S * (1 - e * e))); place(0);
     }, easeInOut).then(() => { scene.remove(pivot); disposeTree(pivot); });
     await Promise.all([dissolve(capGrp, ux, uz), adv]);
+    clearTimeout(camReturn); camReturn = setTimeout(endDive, 650);   // hareket bitince eski kameraya dön
   }
   grp.position.set(to.x, 0, to.z);
   burst(to.x, 0.08, to.z, SIDE[mv.color].hex, 14, 1.0, 0.13);
@@ -1613,6 +1614,7 @@ async function animateMove(mv) {
 
 
 /* ---------- camera: presets, spring motion, orbit, pan, fly, cinematic effects ---------- */
+let camBase = null, camReturn = null;
 let fitRadius = 14, camMode = 'player', autoOrbit = false, timeScale = 1, slowUntil = 0, freezeUntil = 0, shake = 0;
 const camV = { theta: 0, phi: 0, radius: 0, fov: 0 }, camTV = new THREE.Vector3();
 const follow = { x: 0, z: 0, w: 0, goal: 0 };
@@ -1621,6 +1623,7 @@ const baseTheta = () => (playerColor === 'w' ? 0 : Math.PI);
 function nearestTheta(t) { return t + Math.round((camT.theta - t) / (Math.PI * 2)) * Math.PI * 2; }
 
 function setCam(mode) {
+  clearTimeout(camReturn); camBase = null;
   camMode = mode; autoOrbit = false;
   const b = baseTheta(), pt = camera.aspect < 0.85;
   const P = {
@@ -1678,40 +1681,64 @@ function placeCamera(t) {
 }
 
 /* cinematic effects ---------------------------------------------------- */
-let camReturn = null;
 function impactFx(strength) {
   const now = performance.now();
   fx.aberr = 0.022 * strength; fx.flash = 0.5 * strength; shake = (osReduced ? 0.06 : 0.5) * strength;
   freezeUntil = now + 120; slowUntil = now + 1150; timeScale = 0.03;
 }
 function impactCam(sq, strength) { impactFx(strength); diveCam(sq, 2300); }
-function diveCam(sq, holdMs, side) {
-  if (ptrs.size) return;
-  const p = sqPos(sq), sv = { r: camT.radius, ph: camT.phi, th: camT.theta, x: camTargetT.x, y: camTargetT.y, z: camTargetT.z, fov: fovGoal };
+// yakın çekimi bitirir: kullanıcının asıl kamerasına (camBase) döner; art arda yakalamalarda bile ilk kamera korunur
+function endDive() {
   clearTimeout(camReturn);
-  if (side) {                                   // sinematik yan profil: kamera saldırı doğrusuna dik; öndeki taşlar vuruşu kapatmasın diye daha az kapatılan taraf seçilir
-    const vx = side.uz, vz = -side.ux, tgx = side.x, tgz = side.z, cx = Math.sin(camT.theta), cz = Math.cos(camT.theta);
-    const occl = sg => {
-      const th = Math.atan2(vx * sg, vz * sg) + 0.14 * sg, dx = Math.sin(th), dz = Math.cos(th); let n = 0;
-      pieces.forEach(g => {
-        if (side.skip && side.skip.indexOf(g) >= 0) return;
-        const rx = g.position.x - tgx, rz = g.position.z - tgz, s = rx * dx + rz * dz, q = Math.abs(rx * dz - rz * dx);
-        if (s > 0.7 && s < 2.9 && q < 0.5) n++;
-      });
-      return n;
-    };
-    const pref = (vx * cx + vz * cz) >= 0 ? 1 : -1, o1 = occl(pref), o2 = occl(-pref), sg = o2 < o1 ? -pref : pref, o = Math.min(o1, o2);
-    camTargetT.set(tgx, 0.7, tgz);
-    camT.theta = nearestTheta(Math.atan2(vx * sg, vz * sg) + 0.14 * sg);
-    camT.phi = o ? 1.02 : 1.2; camT.radius = o ? 8.2 : 7.4; fovGoal = o ? 34 : 35;
+  const b = camBase; camBase = null;
+  if (!b) return;
+  camT.radius = b.r; camT.phi = b.ph; camT.theta = b.th; camTargetT.set(b.x, b.y, b.z); fovGoal = b.fov;
+}
+function userDragging() {
+  const now = performance.now();
+  ptrs.forEach((p, id) => { if (p.t && now - p.t > 3000) ptrs.delete(id); });   // takılı kalmış parmakları temizle
+  return ptrs.size > 0 && moved > 6;
+}
+// yan profil kamerası: saldırı doğrusuna dik taraflar ve açılar denenir; saldıran, hedef ve orta nokta arada taş olmadan görünsün
+function planSideCam(side) {
+  const base = Math.atan2(side.uz, -side.ux), tgx = side.x, tgz = side.z, asp = camera.aspect || 1.6;
+  const foci = [[tgx, tgz, 0.7], [side.ax, side.az, 0.95], [side.tx, side.tz, 0.7]], occ = [];
+  pieces.forEach(g => { if (!side.skip || side.skip.indexOf(g) < 0) occ.push([g.position.x, g.position.z, (PIECE_H[g.userData.type] || 1.2) * 1.12]); });
+  const OPT = [[1.22, 7.4, 35], [1.05, 7.8, 34], [0.88, 8.2, 33]], offs = [-0.9, -0.6, -0.3, -0.15, 0, 0.15, 0.3, 0.6, 0.9];
+  let best = null;
+  [0, Math.PI].forEach(s0 => offs.forEach(o => OPT.forEach((op, oi) => {
+    const ph = op[0], fov = op[2], R = Math.min(13, Math.max(op[1], 1.8 / (Math.tan(fov * Math.PI / 360) * asp)));   // dikey ekranda uzaklaş
+    const th = base + s0 + o, dx = Math.sin(th), dz = Math.cos(th), Hd = R * Math.sin(ph), Cy = 0.7 + R * Math.cos(ph);
+    let hit = 0, clutter = 0;
+    foci.forEach(f => occ.forEach(c => {
+      const rx = c[0] - f[0], rz = c[1] - f[1], s = rx * dx + rz * dz, q = Math.abs(rx * dz - rz * dx);
+      if (s > 0.55 && s < Hd - 0.4 && q < 0.5 && f[2] + (Cy - f[2]) * (s / Hd) < c[2]) hit++;
+    }));
+    occ.forEach(c => {                                  // kameranın hemen önündeki iri taşlar kadrajı doldurur
+      const rx = c[0] - tgx, rz = c[1] - tgz, s = rx * dx + rz * dz, q = Math.abs(rx * dz - rz * dx);
+      if (s > Hd - 1.7 && s < Hd + 0.6 && q < 1.0 && Cy < c[2] + 1.4) clutter++;
+    });
+    let dth = th - camT.theta; dth = Math.abs(Math.atan2(Math.sin(dth), Math.cos(dth)));
+    const score = hit * 10 + clutter * 2.5 + Math.abs(o) * 3 + oi * 1.2 + dth * 0.5;
+    if (!best || score < best.score) best = { score, th, ph, R, fov };
+  })));
+  return best;
+}
+function diveCam(sq, holdMs, side) {
+  if (userDragging()) return;
+  const p = sqPos(sq);
+  if (!camBase) camBase = { r: camT.radius, ph: camT.phi, th: camT.theta, x: camTargetT.x, y: camTargetT.y, z: camTargetT.z, fov: fovGoal };
+  clearTimeout(camReturn);
+  if (side) {
+    const b = planSideCam(side);
+    camTargetT.set(side.x, 0.7, side.z);
+    camT.theta = nearestTheta(b.th); camT.phi = b.ph; camT.radius = b.R; fovGoal = b.fov;
   } else {
+    const sv = camBase;
     camTargetT.set(p.x, 0.55, p.z);
     camT.radius = Math.max(6.2, sv.r * 0.46); camT.phi = clamp(sv.ph - 0.18, 0.6, 1.0); camT.theta = sv.th + 0.5; fovGoal = sv.fov - 12;
   }
-  camReturn = setTimeout(() => {
-    if (ptrs.size) return;
-    camT.radius = sv.r; camT.phi = sv.ph; camT.theta = sv.th; camTargetT.set(sv.x, sv.y, sv.z); fovGoal = sv.fov;
-  }, holdMs || 2300);
+  camReturn = setTimeout(endDive, holdMs || 2300);
 }
 function checkCam() { shake = Math.max(shake, osReduced ? 0.02 : 0.12); fx.redPulse = 1; fx.aberr = Math.max(fx.aberr, 0.006); }
 function followPiece(g, on) { if (on) { follow.x = g.position.x; follow.z = g.position.z; follow.goal = 1; } else follow.goal = 0; }
@@ -1722,7 +1749,8 @@ let moved = 0, pinch0 = 0, rad0 = 0;
 dom.addEventListener('contextmenu', e => e.preventDefault());
 dom.addEventListener('pointerdown', e => {
   try { dom.setPointerCapture(e.pointerId); } catch (_) {}
-  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button });
+  if (camBase) endDive();
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, t: performance.now() });
   autoOrbit = false;
   if (ptrs.size === 1) moved = 0;
   if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); rad0 = camT.radius; moved = 99; }
@@ -1731,7 +1759,7 @@ dom.addEventListener('pointerdown', e => {
 dom.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId);
   if (!p) { if (e.pointerType === 'mouse') hover(e); return; }
-  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; p.t = performance.now();
   if (ptrs.size === 1) {
     moved += Math.abs(dx) + Math.abs(dy);
     if (moved <= 6) return;
@@ -1755,13 +1783,13 @@ const endPtr = (e, tap) => {
 };
 dom.addEventListener('pointerup', e => endPtr(e, true));
 dom.addEventListener('pointercancel', e => endPtr(e, false));
-dom.addEventListener('wheel', e => { e.preventDefault(); autoOrbit = false; camT.radius = clamp(camT.radius * Math.exp(e.deltaY * 0.001), 6, 40); }, { passive: false });
+dom.addEventListener('wheel', e => { e.preventDefault(); autoOrbit = false; if (camBase) endDive(); camT.radius = clamp(camT.radius * Math.exp(e.deltaY * 0.001), 6, 40); }, { passive: false });
 
 const keys = new Set();
 window.addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '')) return;
   const k = e.key.toLowerCase();
-  if ('wasdrf'.includes(k) && k.length === 1) { keys.add(k); autoOrbit = false; e.preventDefault(); }
+  if ('wasdrf'.includes(k) && k.length === 1) { keys.add(k); autoOrbit = false; if (camBase) endDive(); e.preventDefault(); }
 });
 window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 window.addEventListener('blur', () => keys.clear());
