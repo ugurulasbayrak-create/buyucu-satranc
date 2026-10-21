@@ -899,14 +899,14 @@ function shockwave(x, z, hex) {
 
 const debris = [];
 const debrisGeo = new THREE.DodecahedronGeometry(0.1, 0);
-const debrisGold = new THREE.MeshStandardMaterial({ color: C('#c4b07a'), roughness: 0.3, metalness: 0.9 });
+const debrisGold = new THREE.MeshStandardMaterial({ color: C('#b3a98f'), roughness: 0.34, metalness: 0.7 });
 function rubble(x, z, color, ux, uz) {
   const mat = new THREE.MeshStandardMaterial({ color: C(color === 'w' ? '#f2ead8' : '#1a1a20'), roughness: 0.6, metalness: color === 'w' ? 0.05 : 0.4 });
   const n = 22;
   for (let i = 0; i < n; i++) {
     const m = new THREE.Mesh(debrisGeo, mat); m.castShadow = true;
     m.position.set(x + (Math.random() - 0.5) * 0.3, 0.3 + Math.random() * 0.7, z + (Math.random() - 0.5) * 0.3);
-    const s = 1.5 + Math.random() * 2.6; m.scale.setScalar(s); if (i % 4 === 0) m.material = debrisGold;
+    const s = 1.5 + Math.random() * 2.6; m.scale.setScalar(s); if (i % 5 === 0) m.material = debrisGold;
     scene.add(m);
     debris.push({ m, vx: (Math.random() - 0.5) * 5 + (ux || 0) * 3.2, vy: 2 + Math.random() * 3.5, vz: (Math.random() - 0.5) * 5 + (uz || 0) * 3.2, rx: Math.random() * 6, rz: Math.random() * 6, life: 0, max: 3.2 + Math.random() * 1.2, s });
   }
