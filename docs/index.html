@@ -454,7 +454,7 @@ const animators = [];   // functions(time, dt) run every frame
 /* ---------- renderer, scene, camera ---------- */
 const stageEl = $('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.95;
@@ -941,6 +941,7 @@ const GradeShader = {
     '  col *= exposure; col += vec3(1.0, 0.92, 0.75) * flash;',
     '  col = aces(col);',
     '  col = mix(col, col * col * (3.0 - 2.0 * col), 0.28);',
+    '  col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 1.22);',
     '  col = mix(col, col * vec3(1.15, 0.55, 0.5), red * smoothstep(0.1, 0.6, r2) );',
     '  col *= 1.0 - vig * smoothstep(0.12, 0.62, r2);',
     '  col += (fract(sin(dot(vUv * 800.0 + time, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.018;',
@@ -973,9 +974,9 @@ function buildComposer() {
 function applyQuality() {
   const w = Math.max(10, stageEl.clientWidth), h = Math.max(10, stageEl.clientHeight);
   composer = null;
-  if (quality === 0) { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); renderer.toneMapping = THREE.NoToneMapping; }
-  else if (quality === 1) { renderer.setPixelRatio(1); renderer.toneMapping = THREE.NoToneMapping; }
-  else { renderer.setPixelRatio(0.8); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95; }
+  if (quality === 0) { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.toneMapping = THREE.NoToneMapping; }
+  else if (quality === 1) { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25)); renderer.toneMapping = THREE.NoToneMapping; }
+  else { renderer.setPixelRatio(1); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95; }
   renderer.setSize(w, h, false);
   if (quality < 2 && !buildComposer()) { quality = 2; applyQuality(); return; }
   sun.castShadow = quality < 2;
@@ -995,7 +996,7 @@ function watchPerformance(dtReal) {
   if (el > 1800) {
     const fps = qFrames / (el / 1000);
     qWinStart = 0;
-    if (fps < 24) { quality += fps < 8 ? 2 : 1; quality = Math.min(quality, 2); applyQuality(); }
+    if (fps < 18) { quality += fps < 8 ? 2 : 1; quality = Math.min(quality, 2); applyQuality(); }
   }
 }
 
