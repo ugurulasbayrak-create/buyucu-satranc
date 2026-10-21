@@ -1482,7 +1482,7 @@ function makeSword(hex, type) {
   const g = new THREE.Group();
   const acc = C(hex).clone().lerp(new THREE.Color(1, 1, 1), 0.2).multiplyScalar(2.1);
   const hot = C(hex).clone().lerp(new THREE.Color(1, 1, 1), 0.75).multiplyScalar(2.6);
-  const steel = new THREE.MeshStandardMaterial({ color: C('#e9eef6'), metalness: 0.85, roughness: 0.16, envMapIntensity: 1.5, emissive: C('#0c1017'), emissiveIntensity: 1 });
+  const steel = new THREE.MeshStandardMaterial({ color: C('#eef2f9'), metalness: 0.6, roughness: 0.2, envMapIntensity: 1.5, emissive: C('#33425a'), emissiveIntensity: 1 });
   const dark = new THREE.MeshStandardMaterial({ color: C('#1a1d25'), metalness: 0.85, roughness: 0.3, envMapIntensity: 1.2 });
   const rubber = new THREE.MeshStandardMaterial({ color: C('#101216'), metalness: 0.2, roughness: 0.7 });
   const accM = new THREE.MeshBasicMaterial({ color: acc, toneMapped: false });
@@ -1517,7 +1517,7 @@ function makeTrail(hex, L) {
   const seg = 36, a0 = Math.PI / 2 - 0.9, span = 3.1;
   const geo = new THREE.RingGeometry(L * 0.62, L * 1.05, seg, 1, a0, span);
   geo.rotateY(Math.PI / 2);
-  const col = new Float32Array((seg + 1) * 2 * 3), base = C(hex).clone().lerp(new THREE.Color(1, 1, 1), 0.35).multiplyScalar(1.1);
+  const col = new Float32Array((seg + 1) * 2 * 3), base = C(hex).clone().lerp(new THREE.Color(1, 1, 1), 0.3).multiplyScalar(1.6);
   for (let j = 0; j < 2; j++) for (let i = 0; i <= seg; i++) {
     const t = Math.pow(i / seg, 3) * (j ? 1 : 0), o = (j * (seg + 1) + i) * 3;
     col[o] = base.r * t; col[o + 1] = base.g * t; col[o + 2] = base.b * t;
@@ -1525,10 +1525,17 @@ function makeTrail(hex, L) {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.setDrawRange(0, 0);
   const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-  m.userData.seg = seg; m.renderOrder = 4; m.frustumCulled = false;
+  m.userData.seg = seg; m.userData.base = base; m.renderOrder = 4; m.frustumCulled = false;
   return m;
 }
-function trailTo(trail, ph) { trail.geometry.setDrawRange(0, Math.max(0, Math.min(trail.userData.seg, Math.floor(((ph + 0.9) / 3.1) * trail.userData.seg))) * 6); }
+function trailTo(trail, ph) {
+  const seg = trail.userData.seg, m = Math.max(0, Math.min(seg, Math.floor(((ph + 0.9) / 3.1) * seg))), col = trail.geometry.attributes.color, b = trail.userData.base;
+  for (let i = 0; i <= seg; i++) {
+    const t = i <= m ? Math.pow(i / Math.max(m, 1), 2.2) : 0;
+    for (let j = 0; j < 2; j++) { const o = (j * (seg + 1) + i) * 3, k = j ? 1 : 0.08; col.array[o] = b.r * t * k; col.array[o + 1] = b.g * t * k; col.array[o + 2] = b.b * t * k; }
+  }
+  col.needsUpdate = true; trail.geometry.setDrawRange(0, m * 6);
+}
 function disposeTree(o) { o.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }); }
 async function animateMove(mv) {
   animating = true;
