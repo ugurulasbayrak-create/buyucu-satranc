@@ -197,6 +197,7 @@ input.fld:focus{outline:2px solid var(--gold); outline-offset:1px}
         <button type="button" data-v="3" aria-pressed="false">Üstat</button>
       </div>
       <div class="seg"><button id="bSound" type="button" aria-pressed="true">Ses: açık</button><button id="bMusic" type="button" aria-pressed="true">Müzik: açık</button></div>
+      <div class="seg"><button id="bGfx" type="button" aria-pressed="false">Grafik: otomatik</button></div>
     </section>
     <section class="card mob-only" style="display:grid; gap:6px; grid-template-columns:1fr 1fr">
       <button id="dSide" type="button">Siyah Oyna</button><button id="dAI" type="button">YZ Hamlesi</button>
@@ -971,15 +972,21 @@ function buildComposer() {
     return true;
   } catch (err) { composer = null; return false; }
 }
+let gfxMode = 'auto', hiRes = true;
+try { const g = localStorage.getItem('wc_gfx'); if (g === 'high' || g === 'normal' || g === 'auto') gfxMode = g; } catch (_) {}
+if (gfxMode === 'normal') hiRes = false;
+const prCap = () => gfxMode === 'high' ? 3 : gfxMode === 'normal' ? 2 : hiRes ? 2.5 : 2;
 function applyQuality() {
   const w = Math.max(10, stageEl.clientWidth), h = Math.max(10, stageEl.clientHeight);
   composer = null;
-  if (quality === 0) { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.toneMapping = THREE.NoToneMapping; }
-  else if (quality === 1) { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25)); renderer.toneMapping = THREE.NoToneMapping; }
+  if (quality === 0) { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, prCap())); renderer.toneMapping = THREE.NoToneMapping; }
+  else if (quality === 1) { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); renderer.toneMapping = THREE.NoToneMapping; }
   else { renderer.setPixelRatio(1); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95; }
   renderer.setSize(w, h, false);
   if (quality < 2 && !buildComposer()) { quality = 2; applyQuality(); return; }
   sun.castShadow = quality < 2;
+  const ms = quality === 0 && prCap() > 2 ? 2048 : 1024;                       // yüksek çözünürlükte gölgeler de keskin
+  if (sun.shadow.mapSize.x !== ms) { sun.shadow.mapSize.set(ms, ms); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
 }
 let warmupUntil = 0;
 function initPost() { quality = 0; applyQuality(); warmupUntil = performance.now() + 4000; return !!composer; }
@@ -996,7 +1003,8 @@ function watchPerformance(dtReal) {
   if (el > 1800) {
     const fps = qFrames / (el / 1000);
     qWinStart = 0;
-    if (fps < 18) { quality += fps < 8 ? 2 : 1; quality = Math.min(quality, 2); applyQuality(); }
+    if (quality === 0 && gfxMode === 'auto' && hiRes && (window.devicePixelRatio || 1) > 2 && fps < 30) { hiRes = false; applyQuality(); }   // önce çözünürlüğü kıs
+    else if (fps < (gfxMode === 'high' ? 12 : 18)) { quality += fps < 8 ? 2 : 1; quality = Math.min(quality, 2); applyQuality(); }
   }
 }
 
@@ -2028,6 +2036,14 @@ $('bMusic').onclick = () => {
   ensureAudio(); setMusic(!musicOn);
   $('bMusic').setAttribute('aria-pressed', String(musicOn)); $('bMusic').textContent = 'Müzik: ' + (musicOn ? 'açık' : 'kapalı');
 };
+const GFX_LABEL = { auto: 'Grafik: otomatik', high: 'Grafik: yüksek çözünürlük', normal: 'Grafik: normal' };
+function showGfx() { $('bGfx').textContent = GFX_LABEL[gfxMode]; $('bGfx').setAttribute('aria-pressed', String(gfxMode === 'high')); }
+$('bGfx').onclick = () => {
+  gfxMode = gfxMode === 'auto' ? 'high' : gfxMode === 'high' ? 'normal' : 'auto';
+  try { localStorage.setItem('wc_gfx', gfxMode); } catch (_) {}
+  hiRes = gfxMode !== 'normal'; quality = 0; qWinStart = 0; warmupUntil = performance.now() + 3000; applyQuality(); showGfx();
+};
+showGfx();
 $('segLevel').addEventListener('click', e => {
   const b = e.target.closest('button[data-v]'); if (!b) return;
   sfx.click(); setLevel(+b.dataset.v);
