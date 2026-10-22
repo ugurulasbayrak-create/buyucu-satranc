@@ -1256,8 +1256,8 @@ function updateTweens(dt) {
 }
 
 const bursts = [];
-function burst(x, y, z, hex, n, speed, size) {
-  n = n || 28; speed = speed || 1.6; size = size || 0.16;
+function burst(x, y, z, hex, n, speed, size, o) {
+  n = n || 28; speed = speed || 1.6; size = size || 0.16; o = o || {};
   if (reduced) n = Math.ceil(n / 4);
   const pos = new Float32Array(n * 3), vel = [];
   for (let i = 0; i < n; i++) {
@@ -1267,14 +1267,14 @@ function burst(x, y, z, hex, n, speed, size) {
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.PointsMaterial({ map: spriteTex, color: C(hex), size, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
   const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; scene.add(pts);
-  bursts.push({ pts, vel, life: 0, max: 1.0 });
+  bursts.push({ pts, vel, life: 0, max: o.max || 1.0, grav: o.grav == null ? 2.6 : o.grav });
 }
 function updateBursts(dt) {
   for (let i = bursts.length - 1; i >= 0; i--) {
     const b = bursts[i]; b.life += dt;
     const p = b.pts.geometry.attributes.position;
     for (let k = 0; k < b.vel.length; k++) {
-      const v = b.vel[k]; v.y -= 2.6 * dt;
+      const v = b.vel[k]; v.y -= b.grav * dt;
       p.array[k * 3] += v.x * dt; p.array[k * 3 + 1] = Math.max(0.02, p.array[k * 3 + 1] + v.y * dt); p.array[k * 3 + 2] += v.z * dt;
     }
     p.needsUpdate = true; b.pts.material.opacity = Math.max(0, 1 - b.life / b.max);
@@ -1690,13 +1690,16 @@ const sfx = {
   },
   castle() { sfx.move(); setTimeout(sfx.move, 170); },
   swing() { noise(0.24, 0.16, 2800, { type: 'bandpass', q: 0.8, to: 600 }); tone(980, 0.2, 'sawtooth', 0.035, 240, 0, 0.3); },
-  capture() {
-    tone(95, 0.8, 'sine', 0.42, 28, 0, 0.35);                 // sub boom
-    noise(0.8, 0.3, 2400, { to: 160, wet: 0.5, curve: 1.8 }); // stone crash
-    noise(0.12, 0.28, 6500, { type: 'highpass', curve: 3 });   // crack
-    tone(420, 0.7, 'sawtooth', 0.05, 1500, 0.02, 0.6);         // magic whoosh
-    for (let i = 0; i < 9; i++) tone(700 + Math.random() * 1900, 0.05, 'square', 0.025, null, 0.22 + i * 0.06 + Math.random() * 0.05); // debris clatter
-    bell(1568, 1.1, 0.03, 0.12); bell(2093, 0.9, 0.02, 0.3);
+  capture() {                                                  // ağır çekim kırılma: derin vuruş, uzayan çatırtı, yavaşlayan taş sesleri, zaman dönerken yükselen uğultu
+    tone(95, 1.5, 'sine', 0.46, 24, 0, 0.45);                  // sub boom
+    tone(55, 1.9, 'sine', 0.22, 30, 0.05, 0.5);
+    noise(1.3, 0.3, 2600, { to: 120, wet: 0.6, curve: 1.6 });  // stone crash tail
+    noise(0.1, 0.3, 7000, { type: 'highpass', curve: 3 });      // crack
+    noise(0.4, 0.16, 5200, { type: 'bandpass', q: 1.1, to: 900, delay: 0.02, wet: 0.4 }); // shatter
+    tone(640, 1.6, 'sawtooth', 0.04, 70, 0.03, 0.7);            // time-slow whoosh
+    for (let i = 0; i < 16; i++) tone(500 + Math.random() * 2200, 0.06, 'triangle', 0.02, null, 0.25 + i * 0.11 + i * i * 0.004 + Math.random() * 0.08, 0.5); // clatter, slowing down
+    bell(784, 2.2, 0.025, 0.1); bell(1568, 1.8, 0.03, 0.2); bell(2093, 1.4, 0.02, 0.5);
+    tone(180, 0.9, 'sawtooth', 0.035, 900, 1.5, 0.6);           // time returns riser
     buzz([40, 30, 70]);
   },
   check() { bell(262, 2.2, 0.1, 0, 1); bell(392, 1.8, 0.06, 0.12, 1); tone(110, 0.7, 'sine', 0.2, 80, 0, 0.3); buzz([60, 50, 60]); },
@@ -1833,18 +1836,178 @@ function placeAll(intro) {
 }
 
 /* ---------- move animation ---------- */
+/* ---------- gerçek parçalanma: taşın kendi geometrisi kırıklara bölünür, ağır çekimde savrulur ---------- */
+const shards = [], shardMats = new Map(), realAnims = [];   // realAnims: yavaşlamadan etkilenmeyen (gerçek zamanlı) kısa efektler
+function shardMat(m) {
+  let c = shardMats.get(m);
+  if (!c) { c = m.clone(); c.side = THREE.DoubleSide; shardMats.set(m, c); }   // kırığın içi de görünsün
+  return c;
+}
+// bir mesh'in üçgenlerini K tohumlu Voronoi bölgelerine ayırır; her bölge kendi merkezine göre ayrı geometri olur
+function fragmentMesh(mesh, K) {
+  const geo = mesh.geometry, pa = geo.attributes.position, na = geo.attributes.normal, ua = geo.attributes.uv, idx = geo.index;
+  mesh.updateWorldMatrix(true, false);
+  const M = mesh.matrixWorld, NM = new THREE.Matrix3().getNormalMatrix(M), v = new THREE.Vector3();
+  const T = Math.floor((idx ? idx.count : pa.count) / 3);
+  if (T < 1) return [];
+  const wp = new Float32Array(T * 9), wn = na ? new Float32Array(T * 9) : null, wu = ua ? new Float32Array(T * 6) : null, cen = new Float32Array(T * 3);
+  for (let t = 0; t < T; t++) {
+    let cx = 0, cy = 0, cz = 0;
+    for (let k = 0; k < 3; k++) {
+      const i = idx ? idx.getX(t * 3 + k) : t * 3 + k, o = t * 9 + k * 3;
+      v.fromBufferAttribute(pa, i).applyMatrix4(M); wp[o] = v.x; wp[o + 1] = v.y; wp[o + 2] = v.z; cx += v.x; cy += v.y; cz += v.z;
+      if (wn) { v.fromBufferAttribute(na, i).applyMatrix3(NM).normalize(); wn[o] = v.x; wn[o + 1] = v.y; wn[o + 2] = v.z; }
+      if (wu) { wu[t * 6 + k * 2] = ua.getX(i); wu[t * 6 + k * 2 + 1] = ua.getY(i); }
+    }
+    cen[t * 3] = cx / 3; cen[t * 3 + 1] = cy / 3; cen[t * 3 + 2] = cz / 3;
+  }
+  K = Math.max(1, Math.min(K, T));
+  const sx = [], sy = [], sz = [], sw = [], mind = new Float32Array(T).fill(1e9);
+  let pick = Math.floor(Math.random() * T);
+  for (let s = 0; s < K; s++) {                                   // en uzak nokta örneklemesi: eşit dağılan tohumlar, rastgele ağırlıkla farklı boyutlar
+    const px = cen[pick * 3], py = cen[pick * 3 + 1], pz = cen[pick * 3 + 2];
+    sx.push(px); sy.push(py); sz.push(pz); sw.push(0.65 + Math.random() * 0.9);
+    let far = 0, fd = -1;
+    for (let t = 0; t < T; t++) {
+      const dx = cen[t * 3] - px, dy = cen[t * 3 + 1] - py, dz = cen[t * 3 + 2] - pz, d = dx * dx + dy * dy + dz * dz;
+      if (d < mind[t]) mind[t] = d;
+      if (mind[t] > fd) { fd = mind[t]; far = t; }
+    }
+    pick = far;
+  }
+  const asg = new Int16Array(T), cnt = new Int32Array(K);
+  for (let t = 0; t < T; t++) {
+    let best = 0, bd = 1e12;
+    for (let s = 0; s < K; s++) {
+      const dx = cen[t * 3] - sx[s], dy = cen[t * 3 + 1] - sy[s], dz = cen[t * 3 + 2] - sz[s], d = (dx * dx + dy * dy + dz * dz) * sw[s];
+      if (d < bd) { bd = d; best = s; }
+    }
+    asg[t] = best; cnt[best]++;
+  }
+  const out = [];
+  for (let s = 0; s < K; s++) {
+    const n = cnt[s]; if (!n) continue;
+    const P = new Float32Array(n * 9), N = wn ? new Float32Array(n * 9) : null, U = wu ? new Float32Array(n * 6) : null;
+    let mx = 0, my = 0, mz = 0, j = 0;
+    for (let t = 0; t < T; t++) {
+      if (asg[t] !== s) continue;
+      P.set(wp.subarray(t * 9, t * 9 + 9), j * 9); if (N) N.set(wn.subarray(t * 9, t * 9 + 9), j * 9); if (U) U.set(wu.subarray(t * 6, t * 6 + 6), j * 6);
+      mx += cen[t * 3]; my += cen[t * 3 + 1]; mz += cen[t * 3 + 2]; j++;
+    }
+    mx /= n; my /= n; mz /= n;
+    let rr = 0;
+    for (let q = 0; q < n * 3; q++) { P[q * 3] -= mx; P[q * 3 + 1] -= my; P[q * 3 + 2] -= mz; rr = Math.max(rr, P[q * 3] * P[q * 3] + P[q * 3 + 1] * P[q * 3 + 1] + P[q * 3 + 2] * P[q * 3 + 2]); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+    if (N) g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); else g.computeVertexNormals();
+    if (U) g.setAttribute('uv', new THREE.BufferAttribute(U, 2));
+    out.push({ geo: g, x: mx, y: my, z: mz, r: Math.sqrt(rr), mat: mesh.material });
+  }
+  return out;
+}
+function spawnShards(g, hit, ux, uz) {
+  const qf = quality === 0 ? 1 : quality === 1 ? 0.7 : 0.5;
+  const budget = ({ p: 20, n: 28, b: 28, r: 28, q: 36, k: 38 })[g.userData.type] || 24;
+  const meshes = []; g.traverse(o => { if (o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position) meshes.push(o); });
+  const tris = meshes.map(m => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3);
+  const wsum = tris.reduce((a, t) => a + Math.pow(t, 0.7), 0) || 1;
+  let made = 0;
+  meshes.forEach((mesh, i) => {
+    const K = Math.max(2, Math.round(budget * qf * Math.pow(tris[i], 0.7) / wsum));
+    fragmentMesh(mesh, K).forEach(f => {
+      const m = new THREE.Mesh(f.geo, shardMat(f.mat)); m.castShadow = true; m.position.set(f.x, f.y, f.z); scene.add(m);
+      let dx = f.x - hit.x, dy = f.y - hit.y, dz = f.z - hit.z; const L = Math.hypot(dx, dy, dz) || 1; dx /= L; dy /= L; dz /= L;
+      const sp = (2.0 + Math.random() * 3.4) / (0.7 + f.r * 1.6), kick = 2.2 + Math.random() * 1.6, sl = 0.6 + f.r * 2;
+      let vx = dx * sp + ux * kick, vz = dz * sp + uz * kick; const hv = Math.hypot(vx, vz); if (hv > 5.2) { vx *= 5.2 / hv; vz *= 5.2 / hv; }
+      shards.push({ m, vx, vy: Math.max(0.5, dy * sp) + 1.4 + Math.random() * 2.6, vz, wx: (Math.random() - 0.5) * 12 / sl, wy: (Math.random() - 0.5) * 12 / sl, wz: (Math.random() - 0.5) * 12 / sl, r: f.r, life: 0, max: 4.2 + Math.random() * 1.4, rest: false });
+      made++;
+    });
+  });
+  return made;
+}
+animators.push((t, dt) => {
+  for (let i = shards.length - 1; i >= 0; i--) {
+    const d = shards[i], m = d.m; d.life += dt;
+    if (!d.rest) {
+      d.vy -= 9.8 * dt;
+      m.position.x += d.vx * dt; m.position.y += d.vy * dt; m.position.z += d.vz * dt;
+      m.rotation.x += d.wx * dt; m.rotation.y += d.wy * dt; m.rotation.z += d.wz * dt;
+      const floor = Math.max(0.03, d.r * 0.42);
+      if (m.position.y < floor) {
+        m.position.y = floor;
+        if (Math.abs(d.vy) < 1.2) {                               // yerde kayar ve durur
+          d.vy = 0; const fr = Math.exp(-6 * dt); d.vx *= fr; d.vz *= fr; d.wx *= fr; d.wy *= fr; d.wz *= fr;
+          if (Math.hypot(d.vx, d.vz) < 0.25) d.rest = true;
+        } else { d.vy *= -0.32; d.vx *= 0.62; d.vz *= 0.62; d.wx *= 0.55; d.wy *= 0.55; d.wz *= 0.55; }
+      }
+    }
+    const fade = Math.max(0, Math.min(1, (d.max - d.life) / 0.9));
+    if (fade < 1) m.scale.setScalar(Math.max(0.001, fade));
+    if (d.life >= d.max) { scene.remove(m); m.geometry.dispose(); shards.splice(i, 1); }
+  }
+});
+// vuruş anının sıcak parlaması ve kesik çizgileri: gerçek zamanlı (ağır çekimden etkilenmez), kısa ve parlak
+function flare(x, y, z, hex, size, life, hdr) {
+  const mat = new THREE.SpriteMaterial({ map: spriteTex, color: C(hex).multiplyScalar(hdr || 1), transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false, opacity: 1 });
+  const s = new THREE.Sprite(mat); s.position.set(x, y, z); s.scale.setScalar(size * 0.3); s.renderOrder = 9; scene.add(s);
+  let t = 0;
+  realAnims.push(dt => {
+    t += dt; const k = Math.min(1, t / life);
+    s.scale.setScalar(size * (0.3 + 0.9 * (1 - Math.pow(1 - k, 3)))); mat.opacity = Math.pow(1 - k, 1.6);
+    if (k >= 1) { scene.remove(s); mat.dispose(); return true; }
+  });
+}
+function slash(x, y, z, hex, len, rot, life) {
+  const mat = new THREE.SpriteMaterial({ map: swGlowTex(), color: C(hex).multiplyScalar(2.2), transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false, rotation: rot });
+  const s = new THREE.Sprite(mat); s.position.set(x, y, z); s.renderOrder = 9; scene.add(s);
+  let t = 0;
+  realAnims.push(dt => {
+    t += dt; const k = Math.min(1, t / life), e = 1 - Math.pow(1 - Math.min(1, k * 3), 3);
+    s.scale.set(0.16 * (1 - k * 0.8), len * e, 1); mat.opacity = Math.pow(1 - k, 1.4);
+    if (k >= 1) { scene.remove(s); mat.dispose(); return true; }
+  });
+}
+// yerden yayılan ince toz halkası (ağır çekimde süzülür)
+function dustRing(x, z, n, speed, size) {
+  const pos = new Float32Array(n * 3), vel = [];
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = speed * (0.45 + Math.random() * 0.9);
+    pos[i * 3] = x; pos[i * 3 + 1] = 0.05 + Math.random() * 0.1; pos[i * 3 + 2] = z;
+    vel.push(new THREE.Vector3(Math.cos(a) * sp, 0.1 + Math.random() * 0.45, Math.sin(a) * sp));
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ map: spriteTex, color: C('#a79f8c'), size, transparent: true, depthWrite: false, toneMapped: false });
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; scene.add(pts);
+  bursts.push({ pts, vel, life: 0, max: 2.4, grav: 0.3 });
+}
+// kılıç darbesinden fırlayan küçük taş ve altın kıymıklar
+function chips(hit, ux, uz, color) {
+  const mat = new THREE.MeshStandardMaterial({ color: C(color === 'w' ? '#f2ead8' : '#1a1a20'), roughness: 0.5, metalness: color === 'w' ? 0.05 : 0.5 });
+  const n = quality === 0 ? 16 : 8;
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(debrisGeo, i % 3 === 0 ? debrisGold : mat); m.castShadow = true;
+    m.position.set(hit.x + (Math.random() - 0.5) * 0.4, hit.y + (Math.random() - 0.5) * 0.5, hit.z + (Math.random() - 0.5) * 0.4);
+    const s = 0.5 + Math.random() * 0.9; m.scale.setScalar(s); scene.add(m);
+    debris.push({ m, vx: (Math.random() - 0.5) * 7 + ux * 3.5, vy: 1.5 + Math.random() * 4.5, vz: (Math.random() - 0.5) * 7 + uz * 3.5, rx: Math.random() * 14, rz: Math.random() * 14, life: 0, max: 2.6 + Math.random() * 1.2, s });
+  }
+}
 function dissolve(g, ux, uz) {
-  const col = SIDE[g.userData.color].hex, p = g.position;
-  burst(p.x, 0.5, p.z, col, 64, 3.2, 0.26);
-  burst(p.x, 0.4, p.z, '#ffeed2', 40, 2.2, 0.18);
+  const col = SIDE[g.userData.color].hex, p = g.position, bh = (PIECE_H[g.userData.type] || 1.0);
+  const hit = { x: p.x - ux * 0.3, y: bh * 0.85, z: p.z - uz * 0.3 };
+  sfx.capture();
+  g.updateMatrixWorld(true);
+  spawnShards(g, hit, ux, uz);
+  scene.remove(g);                                                 // sağlam taş yerine kırıkları gelir
+  flare(hit.x, hit.y, hit.z, '#fff2d8', 3.6, 0.42, 3);
+  flare(hit.x, hit.y, hit.z, col, 5.6, 0.75, 1.7);
+  slash(hit.x, hit.y, hit.z, '#ffffff', 3.8, 0.62, 0.4); slash(hit.x, hit.y, hit.z, col, 2.8, -0.48, 0.52);
+  burst(hit.x, hit.y, hit.z, '#ffeed2', 46, 2.6, 0.16, { grav: 1.6, max: 1.3 });
+  burst(hit.x, hit.y, hit.z, col, 56, 3.0, 0.2, { grav: 1.2, max: 1.7 });
+  burst(p.x, 0.5, p.z, '#ffd98a', 36, 1.5, 0.1, { grav: 0.5, max: 2.8 });   // yukarı süzülen ateş kıvılcımları
+  dustRing(p.x, p.z, quality === 0 ? 46 : 24, 1.7, 0.55);
+  chips(hit, ux, uz, g.userData.color);
   shockwave(p.x, p.z, col);
-  setTimeout(() => shockwave(p.x, p.z, '#ffeed2'), 140);
-  sfx.capture(); rubble(p.x, p.z, g.userData.color, ux, uz);
-  const r0 = g.rotation.y;
-  return tween(300, (e, k) => {
-    g.scale.set(1 + 0.18 * Math.sin(k * 3.14), Math.max(0.001, 1 - e * e * 0.95), 1 + 0.18 * Math.sin(k * 3.14));
-    g.rotation.y = r0 + e * 1.2; g.position.y = e * 0.25;
-  }, k => k).then(() => scene.remove(g));
+  setTimeout(() => shockwave(p.x, p.z, '#ffeed2'), 220);
+  return tween(380, () => {}, k => k);
 }
 const PIECE_H = { p: 0.85, n: 1.15, b: 1.3, r: 1.1, q: 1.55, k: 1.7 };
 const SWORD_SPEC = { p: { L: 0.85, w: 0.07, g: 0.2 }, n: { L: 1.05, w: 0.08, g: 0.26 }, b: { L: 1.15, w: 0.075, g: 0.24 }, r: { L: 1.0, w: 0.13, g: 0.34 }, q: { L: 1.3, w: 0.085, g: 0.3 }, k: { L: 1.45, w: 0.12, g: 0.38 } };
@@ -2000,7 +2163,8 @@ async function animateMove(mv) {
       const f = -0.22 + 0.78 * e; grp.position.x = sx + ux * f; grp.position.z = sz + uz * f; grp.position.y = 0.04 * (1 - e); place(0);
     }, easeIn);
     burst(tp.x, 0.8, tp.z, '#fff6e6', 54, 3.6, 0.2); burst(tp.x, 0.6, tp.z, hex, 30, 2.4, 0.16);
-    impactFx(1);
+    impactFx(1, { slow: 0.13, ms: 1900, freeze: 90, shake: 0.8 });   // vuruşta kısa donma, ardından ağır çekim
+    if (camBase) { camT.radius = Math.max(5.2, camT.radius * 0.93); camT.theta += 0.1; fovGoal = Math.max(28, fovGoal - 3); }   // yavaşça yaklaşıp hafif döner
     const ax = grp.position.x, az = grp.position.z;
     const adv = tween(280, e => {
       grp.position.x = lerp(ax, to.x, e); grp.position.z = lerp(az, to.z, e); grp.position.y = 0;
@@ -2026,7 +2190,7 @@ async function animateMove(mv) {
 
 /* ---------- camera: presets, spring motion, orbit, pan, fly, cinematic effects ---------- */
 let camBase = null, camReturn = null;
-let fitRadius = 14, camMode = 'player', autoOrbit = false, timeScale = 1, slowUntil = 0, freezeUntil = 0, shake = 0;
+let fitRadius = 14, camMode = 'player', autoOrbit = false, timeScale = 1, slowUntil = 0, freezeUntil = 0, slowScale = 0.24, shake = 0;
 const camV = { theta: 0, phi: 0, radius: 0, fov: 0 }, camTV = new THREE.Vector3();
 const follow = { x: 0, z: 0, w: 0, goal: 0 };
 let fovGoal = 46; cam.fov = 46;
@@ -2075,8 +2239,8 @@ function updateCamera(dt, now) {
   if (Math.abs(camera.fov - cam.fov) > 0.01) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
   // slow motion returns to normal speed after an impact
   if (now < freezeUntil) timeScale = 0.03;
-  else if (now < slowUntil) timeScale = 0.24;
-  else timeScale += (1 - timeScale) * (1 - Math.exp(-dt * 3));
+  else if (now < slowUntil) timeScale = slowScale;
+  else timeScale += (1 - timeScale) * (1 - Math.exp(-dt * 2.4));
   shake *= Math.exp(-dt * 6);
   placeCamera(now / 1000);
 }
@@ -2092,10 +2256,11 @@ function placeCamera(t) {
 }
 
 /* cinematic effects ---------------------------------------------------- */
-function impactFx(strength) {
+function impactFx(strength, o) {
+  o = o || {};
   const now = performance.now();
-  fx.aberr = 0.022 * strength; fx.flash = 0.5 * strength; shake = (osReduced ? 0.06 : 0.5) * strength;
-  freezeUntil = now + 120; slowUntil = now + 1150; timeScale = 0.03;
+  fx.aberr = 0.022 * strength; fx.flash = 0.5 * strength; shake = (osReduced ? 0.06 : 0.5) * strength * (o.shake || 1);
+  freezeUntil = now + (o.freeze || 120); slowUntil = now + (o.ms || 1150); slowScale = o.slow || 0.24; timeScale = 0.03;
 }
 function impactCam(sq, strength) { impactFx(strength); diveCam(sq, 2300); }
 // yakın çekimi bitirir: kullanıcının asıl kamerasına (camBase) döner; art arda yakalamalarda bile ilk kamera korunur
@@ -3032,6 +3197,7 @@ function frame(now) {
   updateCamera(dt, now);
   const sdt = dt * timeScale;
   updateTweens(sdt); updateBursts(sdt);
+  for (let i = realAnims.length - 1; i >= 0; i--) if (realAnims[i](dt)) realAnims.splice(i, 1);
   for (let i = 0; i < animators.length; i++) animators[i](time, sdt);
   if (!reduced) {
     pieces.forEach(g => { const a = g.userData.anim; for (let i = 0; i < a.length; i++) a[i](time); });
