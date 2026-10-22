@@ -1952,7 +1952,9 @@ async function animateMove(mv) {
     if (rookGrp) { pieces.set(rtSq, rookGrp); rookGrp.userData.sq = rtSq; }
   }
   pieces.set(mv.to, grp); grp.userData.sq = mv.to;
-  const h = capSq ? 1.0 : (mv.piece === 'n' ? 1.15 : 0.7);
+  // taşlar zıplamaz: tahta üzerinde sürüklenerek kayar (hafifçe arkaya yatar, tabanından ince toz kalkar)
+  const baseQ = grp.quaternion.clone(), tiltQ = new THREE.Quaternion(), tiltAxis = new THREE.Vector3(), dustOn = !reduced && quality < 2;
+  let dustT = 0;
   // yakalamada: hedefin 1.15 birim önünde dur, kılıçla saldır (kısa mesafede yerinde kal)
   let dest = to, ux = 0, uz = 1;
   if (capGrp) {
@@ -1967,10 +1969,17 @@ async function animateMove(mv) {
   if (capGrp) diveCam(capSq, dur + 7000, { x: (dest.x + capGrp.position.x) / 2, z: (dest.z + capGrp.position.z) / 2, ux, uz, ax: dest.x, az: dest.z, tx: capGrp.position.x, tz: capGrp.position.z, skip: [grp, capGrp] });
   const jobs = [tween(dur, (e, k) => {
     follow.x = grp.position.x; follow.z = grp.position.z;
-    grp.position.x = lerp(from.x, dest.x, e); grp.position.z = lerp(from.z, dest.z, e); grp.position.y = Math.sin(Math.PI * k) * h;
+    grp.position.x = lerp(from.x, dest.x, e); grp.position.z = lerp(from.z, dest.z, e); grp.position.y = 0;
+    const mx = dest.x - from.x, mz = dest.z - from.z, ml = Math.hypot(mx, mz);
+    if (ml > 0.01) {
+      tiltAxis.set(-mz / ml, 0, mx / ml); tiltQ.setFromAxisAngle(tiltAxis, 0.1 * Math.sin(Math.PI * k)); grp.quaternion.copy(tiltQ).multiply(baseQ);
+      const tnow = performance.now();
+      if (dustOn && k > 0.05 && k < 0.95 && tnow - dustT > 90) { dustT = tnow; burst(grp.position.x, 0.04, grp.position.z, '#d8cbb0', 3, 0.3, 0.1); }
+    }
+    if (k >= 1) grp.quaternion.copy(baseQ);
   }, easeInOut)];
   if (rookGrp) jobs.push(tween(dur, (e, k) => {
-    rookGrp.position.x = lerp(rf.x, rt.x, e); rookGrp.position.z = lerp(rf.z, rt.z, e); rookGrp.position.y = Math.sin(Math.PI * k) * 0.45;
+    rookGrp.position.x = lerp(rf.x, rt.x, e); rookGrp.position.z = lerp(rf.z, rt.z, e); rookGrp.position.y = 0;
   }, easeInOut));
   await Promise.all(jobs);
   follow.goal = 0;
@@ -1984,11 +1993,11 @@ async function animateMove(mv) {
     sfx.swing();
     await tween(300, e => {                                   // hazırlık: kılıç kalkar, taş geri yaslanır
       sword.scale.setScalar(Math.max(0.01, e * S)); sword.rotation.x = lerp(-0.2, -0.8, e);
-      grp.position.x = sx - ux * 0.22 * e; grp.position.z = sz - uz * 0.22 * e; grp.position.y = 0.12 * e; place(0);
+      grp.position.x = sx - ux * 0.22 * e; grp.position.z = sz - uz * 0.22 * e; grp.position.y = 0.04 * e; place(0);
     }, easeInOut);
     await tween(170, e => {                                   // savurma: öne atılıp aşağı keser
       const ph = lerp(-0.8, 2.05, e); sword.rotation.x = ph; trailTo(trail, ph);
-      const f = -0.22 + 0.78 * e; grp.position.x = sx + ux * f; grp.position.z = sz + uz * f; grp.position.y = 0.12 * (1 - e); place(0);
+      const f = -0.22 + 0.78 * e; grp.position.x = sx + ux * f; grp.position.z = sz + uz * f; grp.position.y = 0.04 * (1 - e); place(0);
     }, easeIn);
     burst(tp.x, 0.8, tp.z, '#fff6e6', 54, 3.6, 0.2); burst(tp.x, 0.6, tp.z, hex, 30, 2.4, 0.16);
     impactFx(1);
